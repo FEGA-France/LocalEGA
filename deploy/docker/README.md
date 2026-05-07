@@ -84,17 +84,11 @@ Prepare the vault database
 
 	echo 'very-strong-password' > confs/pg_vault_su_password
 	chmod 600 confs/pg_vault_su_password
-	make init-vault
-	
-	# start the database
-	docker-compose up -d vault-db
 
-	# add settings
-	make psql < confs/vault-db.sql
-
-	# stop the database to pick-up new settings from confs/vault-db.sql on the next reboot
-	docker-compose stop vault-db
-	yes | docker-compose rm vault-db
+	# Initialize the Vault-DB before booting it
+	make db
+	# This will add the SQL definitions and necessary (dummy) settings.
+	# See confs/vault-db.sql
 
 In the `pg.conf` file, update the `crypt4gh.master_seckey` secret with the hex value of the master private key.  
 You can run the following python snippet to get it: (you need the `crypt4gh` package: `pip install crypt4gh`).
@@ -115,13 +109,16 @@ The default supplied one is not very restrictive, and you should adjust it in yo
 
 Finally, you are now ready to instantiate the containers
 
-	# Start all the containers
 	make up
 	
 	# We tried to include heathchecks to start in the right order.
 	# If that's not the case, (say elasticsearch or the message broker didn't start fast enough)
 	# then restart again
 	make up
+
+Check the containers' status with
+
+	make ps
 
 You can follow along with
 
@@ -131,7 +128,6 @@ and tear all down with
 
 	make down
 
-
 # (fake) Central EGA
 
 The local deployment includes an instance of a fake Central EGA, with a message broker and a dummy server to handle (only) a few messages.
@@ -139,3 +135,20 @@ The local deployment includes an instance of a fake Central EGA, with a message 
 You can see the code in the [`cega`](cega) folder.
 
 If you already have credentials for a test environment from Central EGA, you can update the docker-compose environment variable for the `mq` and `inbox` containers. Comment out the `cega` and `cega-mq` instances to avoid starting them.
+
+# Local access and logging
+
+An instance of Kibana (pointing to Elasticsearch) is running on [port 5601](http://localhost:5601)
+
+The python containers ship their logs directly to Elasticsearch in the index `fega-app` (see [`confs/logger.json`](confs/logger.json). The vault-db dumps its logs on disk (see `data/vault-db/logs`) and an instance of [vector.dev](https://vector.dev/docs/reference/configuration/sinks/elasticsearch/) picks them up and ships to Elasticsearch.
+
+You can inspect:
+* the MQ broker on [port 15672](http://localhost:15672),
+* the inbox MQ broker on [port 15673](http://localhost:15673) and,
+* the (fake) Central EGA MQ broker on [port 15670](http://localhost:15670) (if you started it)
+
+If you have `sqlite3` installed, you can inspect the _running ingestion jobs_ in the `confs/ingestion.db` database with 
+
+	sqlite3 confs/ingestion.db
+	> select * from jobs;
+

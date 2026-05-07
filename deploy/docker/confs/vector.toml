@@ -3,7 +3,7 @@ enabled = true  # for metrics/health checks
 
 [sources.postgres]
 type = "file"
-include = ["$PGDATA/logs/*.log"]
+include = ["$EGA_VAULT_DB_LOGS/*.log"]
 ignore_checkpoints = true
 read_from = "end"
 ignore_older_secs = 86400

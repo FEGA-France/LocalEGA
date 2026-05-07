@@ -64,12 +64,25 @@ pre-up:
 	docker-compose up -d cega
 up:
 	docker-compose up -d
-up-db:
-	docker-compose up -d vault-db
 
 clean:
 	-echo -n '' > confs/ingestion.db
 	-rm -rf data/{vault,backup,vault.bkp,staging,inbox}/*
 	-rm -rf data/vault-db
+
+
+up-db:
+	docker-compose up -d vault-db
+down-db:
+	docker-compose stop vault-db
+	yes | docker-compose rm vault-db
+setup-db:
+	psql < confs/vault-db.sql
+
+wait-db:
+	@sleep 2
+
+db: init-vault up-db wait-db setup-db down-db
+
 
 -include example.mk

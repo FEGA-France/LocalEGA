@@ -257,7 +257,6 @@ services:
       - ./data/vault-db:/ega/data
       - ./confs/pg.conf:/etc/ega/pg.conf:ro
       - ./confs/pg_hba.conf:/etc/ega/pg_hba.conf:ro
-      - ./confs/vector.toml:/etc/ega/vector.toml:ro
     networks:
       - vault
       - internal # to make it contact mq without routing
@@ -320,10 +319,10 @@ services:
     networks:
       - internal
     environment:
-      - PGDATA=/ega/db
+      - EGA_VAULT_DB_LOGS=/ega/vault-db/logs
     volumes:
       - ./confs/vector.toml:/etc/ega/vector.toml
-      - ./data/vault-db/logs:/ega/db/logs
+      - ./data/vault-db/logs:/ega/vault-db/logs
     entrypoint: ["/usr/bin/vector"]
     command: ["--config", "/etc/ega/vector.toml"]
 
@@ -337,7 +336,7 @@ services:
   cega-mq:
     hostname: cega-mq
     ports:
-      - 15669:15672
+      - 15670:15672
     image: rabbitmq:4.3-management-alpine
     container_name: cega-mq
     networks:
@@ -347,10 +346,18 @@ services:
       - cega-mq:/var/lib/rabbitmq
       - ./cega/mq/definitions.json:/etc/rabbitmq/definitions.json
       - ./cega/mq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
 
   cega:
     depends_on:
-      - cega-mq
+      cega-mq:
+        condition: service_healthy
+        restart: true
     hostname: cega
     ports:
       - 8080:8080
