@@ -1,10 +1,8 @@
 
 
--- ALTER ROLE lega WITH PASSWORD 'z61GSxD5R2XP4EI8EQW6gKDm';
+ALTER ROLE distribution WITH PASSWORD 'secret';
 
-ALTER ROLE distribution WITH PASSWORD 'sIrqr3E8UNH83C2O8Gn6e3A1';
-
--- ALTER ROLE dashboard WITH PASSWORD '2zfm6dE76QrBJ2bd';
+-- ALTER ROLE dashboard WITH PASSWORD '__CHANGE-ME__';
 
 INSERT INTO amqp.brokers(id, host, port, username, password, ssl)
 VALUES (1, 'mq', 5672, 'admin', 'secret', false);
