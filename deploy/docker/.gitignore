@@ -1,8 +1,6 @@
 data
 
-confs/pg_su_password
-confs/pg_vault_su_password
-
 example.mk
 
 confs/ingestion.db
+confs/pg_su_password

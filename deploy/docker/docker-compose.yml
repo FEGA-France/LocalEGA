@@ -33,7 +33,7 @@ services:
       - 15673:15672
     image: crg/fega-inbox:latest
     volumes:
-      - ./data/inbox:/ega/inbox
+      - ./data/disks/inbox:/ega/inbox
 
   mq:
     environment:
@@ -95,8 +95,8 @@ services:
       - ./confs/logger.json:/etc/ega/logger.json:ro
       - ./confs/service.seckey:/etc/ega/service.seckey:ro
       - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
-      - ./data/inbox:/ega/inbox:ro
-      - ./data/staging:/ega/staging
+      - ./data/disks/inbox:/ega/inbox:ro
+      - ./data/disks/staging:/ega/staging
 
   ingester-2:
     depends_on:
@@ -116,8 +116,8 @@ services:
       - ./confs/logger.json:/etc/ega/logger.json:ro
       - ./confs/service.seckey:/etc/ega/service.seckey:ro
       - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
-      - ./data/inbox:/ega/inbox:ro
-      - ./data/staging:/ega/staging
+      - ./data/disks/inbox:/ega/inbox:ro
+      - ./data/disks/staging:/ega/staging
 
   ingester-3:
     depends_on:
@@ -137,8 +137,8 @@ services:
       - ./confs/logger.json:/etc/ega/logger.json:ro
       - ./confs/service.seckey:/etc/ega/service.seckey:ro
       - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
-      - ./data/inbox:/ega/inbox:ro
-      - ./data/staging:/ega/staging
+      - ./data/disks/inbox:/ega/inbox:ro
+      - ./data/disks/staging:/ega/staging
 
   ingester-4:
     depends_on:
@@ -158,8 +158,8 @@ services:
       - ./confs/logger.json:/etc/ega/logger.json:ro
       - ./confs/service.seckey:/etc/ega/service.seckey:ro
       - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
-      - ./data/inbox:/ega/inbox:ro
-      - ./data/staging:/ega/staging
+      - ./data/disks/inbox:/ega/inbox:ro
+      - ./data/disks/staging:/ega/staging
 
   archiver-1:
     depends_on:
@@ -178,9 +178,9 @@ services:
     volumes:
       - ./confs/archiver.ini:/etc/ega/lega.ini:ro
       - ./confs/logger.json:/etc/ega/logger.json:ro
-      - ./data/staging:/ega/staging
-      - ./data/vault.bkp:/ega/backup
-      - ./data/vault:/ega/vault
+      - ./data/disks/staging:/ega/staging
+      - ./data/disks/vault.bkp:/ega/backup
+      - ./data/disks/vault:/ega/vault
 
   archiver-2:
     depends_on:
@@ -199,9 +199,9 @@ services:
     volumes:
       - ./confs/archiver.ini:/etc/ega/lega.ini:ro
       - ./confs/logger.json:/etc/ega/logger.json:ro
-      - ./data/staging:/ega/staging
-      - ./data/backup:/ega/backup
-      - ./data/vault:/ega/vault
+      - ./data/disks/staging:/ega/staging
+      - ./data/disks/vault.bkp:/ega/backup
+      - ./data/disks/vault:/ega/vault
 
   archiver-3:
     depends_on:
@@ -220,9 +220,9 @@ services:
     volumes:
       - ./confs/archiver.ini:/etc/ega/lega.ini:ro
       - ./confs/logger.json:/etc/ega/logger.json:ro
-      - ./data/staging:/ega/staging
-      - ./data/backup:/ega/backup
-      - ./data/vault:/ega/vault
+      - ./data/disks/staging:/ega/staging
+      - ./data/disks/vault.bkp:/ega/backup
+      - ./data/disks/vault:/ega/vault
 
   archiver-4:
     depends_on:
@@ -241,9 +241,9 @@ services:
     volumes:
       - ./confs/archiver.ini:/etc/ega/lega.ini:ro
       - ./confs/logger.json:/etc/ega/logger.json:ro
-      - ./data/staging:/ega/staging
-      - ./data/backup:/ega/backup
-      - ./data/vault:/ega/vault
+      - ./data/disks/staging:/ega/staging
+      - ./data/disks/vault.bkp:/ega/backup
+      - ./data/disks/vault:/ega/vault
 
 
   vault-db:

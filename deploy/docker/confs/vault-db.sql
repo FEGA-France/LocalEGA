@@ -1,8 +1,8 @@
 
+-- ALTER ROLE postgres WITH PASSWORD '__CHANGE-ME__';
+-- ALTER ROLE dashboard WITH PASSWORD '__CHANGE-ME__';
 
 ALTER ROLE distribution WITH PASSWORD 'secret';
-
--- ALTER ROLE dashboard WITH PASSWORD '__CHANGE-ME__';
 
 INSERT INTO amqp.brokers(id, host, port, username, password, ssl)
 VALUES (1, 'mq', 5672, 'admin', 'secret', false);
