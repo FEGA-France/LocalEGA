@@ -1,0 +1,13 @@
+data
+
+confs/pg_su_password
+confs/pg_vault_su_password
+
+example.mk
+
+confs/master.pubkey
+confs/master.seckey
+confs/service.pubkey
+confs/service.seckey
+
+confs/ingestion.db

@@ -12,11 +12,8 @@ tests/_common/backup
 tests/_common/mq/*.pem
 *.old
 
-deploy/docker/*
-!deploy/docker/Makefile
-!deploy/docker/README.md
-!deploy/docker/*.sample
-!deploy/docker/cega
+# For deploy/docker/...
+# See deploy/docker/.gitignore
 
 
 # =====================================

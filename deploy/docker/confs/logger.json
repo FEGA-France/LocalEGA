@@ -1,0 +1,58 @@
+{
+    "version": 1,
+    "root": {
+        "level": "NOTSET",
+        "handlers": [
+            "noHandler"
+        ]
+    },
+    "loggers": {
+        "__main__": {
+            "level": "DEBUG",
+            "handlers": [ "console", "es" ],
+            "propagate": true
+        },
+        "code": {
+            "level": "DEBUG",
+            "handlers": [ "console", "es" ],
+            "propagate": true
+        },
+        "pamqp": {
+            "level": "CRITICAL",
+            "handlers": [ "console" ]
+        },
+        "aiormq": {
+            "level": "CRITICAL",
+            "handlers": [ "console" ]
+        }
+    },
+    "handlers": {
+        "noHandler": {
+            "class": "logging.NullHandler",
+            "level": "NOTSET"
+        },
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+            "stream": "ext://sys.stderr"
+        },
+        "es": {
+            "class": "code.logger.AsyncBufferedElasticSearchHandler",
+            "formatter": "json",
+            "url": "http://elasticsearch:9200",
+	    "index": "fega-app",
+	    "retry_after": 10
+	}
+    },
+    "formatters": {
+        "simple": {
+            "format": "[{pid}][{levelname:^6}][{correlation_id:>20}] {message}",
+            "style": "{"
+        },
+	"json": {
+	    "class": "code.logger.JSONFormatter",
+	    "format": "appname,pid,hostname,username,asctime,levelname,name,module,funcName,lineno,message,correlation_id",
+	    "datefmt": "%Y-%m-%d %H:%M:%S"
+	}
+    }
+}

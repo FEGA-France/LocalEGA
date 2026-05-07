@@ -1,0 +1,365 @@
+
+networks:
+  external:
+  internal:
+  vault:
+
+volumes:
+  mq:
+  cega-mq:
+  es_data:
+
+services:
+  inbox:
+    hostname: inbox
+    container_name: fega-inbox
+    networks:
+      - external
+      - internal
+    environment:
+      # - CEGA_ENDPOINT=https://nss.test.ega-archive.org
+      # - CEGA_ENDPOINT_CREDS=fega-node:fega-secret
+      - CEGA_ENDPOINT=http://cega:8080
+      - CEGA_ENDPOINT_CREDS=fega:testing
+      - MQ_CONNECTION=amqp://admin:secret@mq:5672/%2F
+      - MQ_EXCHANGE=cega
+      - MQ_ROUTING_KEY=files.inbox
+      - MQ_VERIFY_PEER=no
+      - MQ_VERIFY_HOSTNAME=no
+      - AUTH_VERIFY_PEER=no
+      - AUTH_VERIFY_HOSTNAME=no
+    ports:
+      - 2222:9000
+      - 15673:15672
+    image: crg/fega-inbox:latest
+    volumes:
+      - ./data/inbox:/ega/inbox
+
+  mq:
+    environment:
+      # - CEGA_CONNECTION=amqps://fega-node:fega-secret@rabbitmq.test.ega-archive.org:5671/fega-node
+      - CEGA_CONNECTION=amqp://admin:secret@cega-mq:5672/%2F
+      - INBOX_CONNECTION=amqp://fs:secret@inbox:5672/%2F
+    hostname: mq
+    ports:
+      - 15672:15672
+    image: rabbitmq:4.3-management-alpine
+    container_name: fega-mq
+    networks:
+      - internal
+    volumes:
+      - mq:/var/lib/rabbitmq
+      - ../../src/mq/entrypoint.sh:/usr/local/bin/ega-entrypoint.sh
+    entrypoint: ['/usr/local/bin/ega-entrypoint.sh']
+    command: 'rabbitmq-server'
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  dispatcher:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+      elasticsearch:
+        condition: service_healthy
+    hostname: dispatcher
+    image: fega/dispatcher:latest
+    container_name: fega-dispatcher
+    volumes:
+      - ./confs/dispatcher.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./confs/ingestion.db:/etc/ega/ingestion.db
+    networks:
+      - internal
+    command: [ "/etc/ega/lega.ini" ]
+
+  ingester-1:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+      elasticsearch:
+        condition: service_healthy
+    hostname: ingester-1
+    image: fega/ingester:latest
+    container_name: fega-ingester-1
+    networks:
+      - internal
+    command: ["/etc/ega/lega.ini", "ingestion-1"]
+    volumes:
+      - ./confs/ingester.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./confs/service.seckey:/etc/ega/service.seckey:ro
+      - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
+      - ./data/inbox:/ega/inbox:ro
+      - ./data/staging:/ega/staging
+
+  ingester-2:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+      elasticsearch:
+        condition: service_healthy
+    hostname: ingester-2
+    image: fega/ingester:latest
+    container_name: fega-ingester-2
+    networks:
+      - internal
+    command: ["/etc/ega/lega.ini", "ingestion-2"]
+    volumes:
+      - ./confs/ingester.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./confs/service.seckey:/etc/ega/service.seckey:ro
+      - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
+      - ./data/inbox:/ega/inbox:ro
+      - ./data/staging:/ega/staging
+
+  ingester-3:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+      elasticsearch:
+        condition: service_healthy
+    hostname: ingester-3
+    image: fega/ingester:latest
+    container_name: fega-ingester-3
+    networks:
+      - internal
+    command: ["/etc/ega/lega.ini", "ingestion-3"]
+    volumes:
+      - ./confs/ingester.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./confs/service.seckey:/etc/ega/service.seckey:ro
+      - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
+      - ./data/inbox:/ega/inbox:ro
+      - ./data/staging:/ega/staging
+
+  ingester-4:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+      elasticsearch:
+        condition: service_healthy
+    hostname: ingester-4
+    image: fega/ingester:latest
+    container_name: fega-ingester-4
+    networks:
+      - internal
+    command: ["/etc/ega/lega.ini", "ingestion-4"]
+    volumes:
+      - ./confs/ingester.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./confs/service.seckey:/etc/ega/service.seckey:ro
+      - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
+      - ./data/inbox:/ega/inbox:ro
+      - ./data/staging:/ega/staging
+
+  archiver-1:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+      elasticsearch:
+        condition: service_healthy
+    hostname: archiver-1
+    image: fega/archiver:latest
+    container_name: fega-archiver-1
+    networks:
+      - vault
+      - internal # to make it contact mq without routing
+    command: ["/etc/ega/lega.ini", "archiver-1"]
+    volumes:
+      - ./confs/archiver.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./data/staging:/ega/staging
+      - ./data/vault.bkp:/ega/backup
+      - ./data/vault:/ega/vault
+
+  archiver-2:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+      elasticsearch:
+        condition: service_healthy
+    hostname: archiver-2
+    image: fega/archiver:latest
+    container_name: fega-archiver-2
+    networks:
+      - vault
+      - internal # to make it contact mq without routing
+    command: ["/etc/ega/lega.ini", "archiver-2"]
+    volumes:
+      - ./confs/archiver.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./data/staging:/ega/staging
+      - ./data/backup:/ega/backup
+      - ./data/vault:/ega/vault
+
+  archiver-3:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+      elasticsearch:
+        condition: service_healthy
+    hostname: archiver-3
+    image: fega/archiver:latest
+    container_name: fega-archiver-3
+    networks:
+      - vault
+      - internal # to make it contact mq without routing
+    command: ["/etc/ega/lega.ini", "archiver-3"]
+    volumes:
+      - ./confs/archiver.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./data/staging:/ega/staging
+      - ./data/backup:/ega/backup
+      - ./data/vault:/ega/vault
+
+  archiver-4:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+      elasticsearch:
+        condition: service_healthy
+    hostname: archiver-4
+    image: fega/archiver:latest
+    container_name: fega-archiver-4
+    networks:
+      - vault
+      - internal # to make it contact mq without routing
+    command: ["/etc/ega/lega.ini", "archiver-4"]
+    volumes:
+      - ./confs/archiver.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./data/staging:/ega/staging
+      - ./data/backup:/ega/backup
+      - ./data/vault:/ega/vault
+
+
+  vault-db:
+    # depends_on:
+    #   mq:
+    #     condition: service_healthy
+    hostname: vault
+    image: fega/vault-db:latest
+    container_name: fega-vault-db
+    volumes:
+      - ./data/vault-db:/ega/data
+      - ./confs/pg.conf:/etc/ega/pg.conf:ro
+      - ./confs/pg_hba.conf:/etc/ega/pg_hba.conf:ro
+      - ./confs/vector.toml:/etc/ega/vector.toml:ro
+    networks:
+      - vault
+      - internal # to make it contact mq without routing
+    user: postgres
+    ports:
+      - 5432:5432
+    entrypoint: ["postgres"]
+    command: ["-c", "config_file=/etc/ega/pg.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ega"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+
+  ################################################################
+  ## Monitoring / Collecting logs
+  ################################################################
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: fega-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - ES_PATH_CONF=/usr/share/elasticsearch/config
+    networks:
+      - internal
+      # - vault # so that vault-db can contact it without routing
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.0
+    container_name: fega-kibana
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - internal
+
+  vector:
+    image: timberio/vector:0.55.0-debian
+    container_name: fega-vault-db-logger
+    depends_on:
+      vault-db:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - internal
+    environment:
+      - PGDATA=/ega/db
+    volumes:
+      - ./confs/vector.toml:/etc/ega/vector.toml
+      - ./data/vault-db/logs:/ega/db/logs
+    entrypoint: ["/usr/bin/vector"]
+    command: ["--config", "/etc/ega/vector.toml"]
+
+
+
+  ################################################################
+  ## Fake Central EGA services. Those are minimally dummy!
+  ## Only for local simulation.
+  ## Request your test environment otherwise.
+  ################################################################
+  cega-mq:
+    hostname: cega-mq
+    ports:
+      - 15669:15672
+    image: rabbitmq:4.3-management-alpine
+    container_name: cega-mq
+    networks:
+      - external
+      - internal # to make mq contact cega-mq without routing
+    volumes:
+      - cega-mq:/var/lib/rabbitmq
+      - ./cega/mq/definitions.json:/etc/rabbitmq/definitions.json
+      - ./cega/mq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+
+  cega:
+    depends_on:
+      - cega-mq
+    hostname: cega
+    ports:
+      - 8080:8080
+    image: cega
+    build: ./cega
+    container_name: cega
+    networks:
+      - external
+    volumes:
+      - ./cega/users/users.json:/ega/users.json
+    entrypoint: ['python', '-m', 'server']
+    command: '-d -f 1 amqp://admin:secret@cega-mq:5672/%2F'
