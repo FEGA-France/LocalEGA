@@ -1,59 +1,33 @@
-#!/usr/bin/env bash
-
-set -eo pipefail
-
-
-[[ -z "${CEGA_CONNECTION}" ]] && echo 'Environment variable CEGA_CONNECTION is empty' 1>&2 && exit 1
-[[ -z "${INBOX_CONNECTION}" ]] && echo 'Environment variable INBOX_CONNECTION is empty' 1>&2 && exit 1
-[[ -z "${MQ_PASSWORD_HASH}" ]] && export MQ_PASSWORD_HASH='IUBfMYLSSPynj8zjLxX3DtEHi0fhcKPhY/Cy7MJhrragBeP8'
-
-cat > /etc/rabbitmq/rabbitmq.conf <<EOF
-loopback_users.guest = false
-
-disk_free_limit.absolute = 1GB
-
-listeners.tcp.local    = 0.0.0.0:5672
-management.tcp.port = 15672
-management.tcp.ip = 0.0.0.0
-
-load_definitions = /etc/rabbitmq/definitions.json
-
-# Add/Overwrite timestamp to all messages
-message_interceptors.incoming.set_header_timestamp.overwrite = true
-
-EOF
-
-cat > /etc/rabbitmq/definitions.json <<EOF
 {
     "users": [
 	{"name": "admin",
-	 "password_hash": "${MQ_PASSWORD_HASH}",
+	 "password_hash": "bnORK5MmxnxbxygUzJOfcLMg9yt6UzfY2sV3ui0sNOUS3qoa",
 	 "hashing_algorithm": "rabbit_password_hashing_sha256",
 	 "tags": ["administrator","management"],
 	 "limits": {}
+	},
+	{"name": "fega",
+	 "password_hash": "MdY2bo8smmoc3wmQJ9Z3UFfdjYeSxB7A2ENPgxlaLMSWhB74",
+	 "hashing_algorithm": "rabbit_password_hashing_sha256",
+	 "tags": [],
+	 "limits": {}
+	},
+	{"name":"dashboard",
+	 "password_hash":"uDfvnBYTEssH9V4iyUS+ZBT8LsHTR/MLvmwx4QT9p9OH/SGF",
+	 "hashing_algorithm":"rabbit_password_hashing_sha256",
+	 "tags":["monitoring"],
+	 "limits":{}
 	}
     ],
     "vhosts": [
         {"name": "/", "default_queue_type": "classic"}
     ],
     "permissions": [
-	{ "user": "admin",
-	  "vhost": "/",
-	  "configure": ".*", "write": ".*", "read": ".*"
-	}
+	{ "user": "admin", "vhost": "/", "configure": ".*", "write": ".*", "read": ".*" },
+	{ "user": "fega", "vhost": "/", "configure": "", "write": ".*", "read": ".*" },
+	{ "user": "dashboard", "vhost": "/", "configure": "", "write": "^lega$", "read": "^all\\.lega$|^lega\\.dead$|^to_cega$" }
     ],
-
     "parameters": [
-	{"name": "from_cega", "vhost": "/", "component": "federation-upstream",
-	 "value": { "ack-mode": "on-confirm", "queue": "to_${AFFILIATE_NAME:-fega}",
-		    "trust-user-id": false,
-		    "uri": "${CEGA_CONNECTION}" }
-	},
-	{"name": "from_inbox", "vhost": "/", "component": "federation-upstream",
-	 "value": { "ack-mode": "on-confirm", "queue": "fs",
-		    "trust-user-id": false,
-		    "uri": "${INBOX_CONNECTION}" }
-	},
 	{
 	    "value": {
                 "ack-mode": "on-confirm",
@@ -89,33 +63,9 @@ cat > /etc/rabbitmq/definitions.json <<EOF
             "vhost": "/",
             "component": "shovel",
             "name": "from_inbox"
-        },
-        {
-            "value": {
-                "ack-mode": "on-confirm",
-                "dest-add-forward-headers": false,
-                "dest-exchange": "localega",
-                "dest-protocol": "amqp091",
-                "dest-uri": "${CEGA_CONNECTION}",
-                "reconnect-delay": 5,
-                "src-delete-after": "never",
-                "src-protocol": "amqp091",
-                "src-queue": "to_cega",
-                "src-uri": "amqp://"
-            },
-            "vhost": "/",
-            "component": "shovel",
-            "name": "to_cega"
         }
     ],
-    "policies": [
-	{"vhost": "/", "name": "from_cega", "pattern": "from_cega", "apply-to": "queues", "priority": 0,
-	 "definition": { "federation-upstream": "from_cega" }
-	},
-	{"vhost": "/", "name": "from_inbox", "pattern": "from_inbox", "apply-to": "queues", "priority": 0,
-	 "definition": { "federation-upstream": "from_inbox" }
-	}
-    ],
+    "policies": [],
     "queues": [
 
 	{"name": "from_inbox", "vhost": "/", "durable": true, "auto_delete": false,
@@ -133,7 +83,6 @@ cat > /etc/rabbitmq/definitions.json <<EOF
 	     "x-dead-letter-exchange":"lega.dead",
 	     "x-queue-type": "classic"}
 	},
-
 	{"name": "dispatch", "vhost": "/", "durable": true, "auto_delete": false,
 	 "arguments":{
 	     "x-dead-letter-exchange":"lega.dead",
@@ -149,25 +98,7 @@ cat > /etc/rabbitmq/definitions.json <<EOF
 	{"name": "errors", "vhost": "/", "durable": true, "auto_delete": false,
 	 "arguments":{ "x-queue-type": "classic"}},
 
-	{"name": "ingestion-1", "vhost": "/", "durable": true, "auto_delete": false,
-	 "arguments":{
-	     "x-dead-letter-exchange":"lega.dead",
-	     "x-queue-type": "classic",
-	     "x-consumer-timeout": 7200000 }
-	},
-	{"name": "ingestion-2", "vhost": "/", "durable": true, "auto_delete": false,
-	 "arguments":{
-	     "x-dead-letter-exchange":"lega.dead",
-	     "x-queue-type": "classic",
-	     "x-consumer-timeout": 7200000 }
-	},
 	{"name": "ingestion-3", "vhost": "/", "durable": true, "auto_delete": false,
-	 "arguments":{
-	     "x-dead-letter-exchange":"lega.dead",
-	     "x-queue-type": "classic",
-	     "x-consumer-timeout": 7200000 }
-	},
-	{"name": "ingestion-4", "vhost": "/", "durable": true, "auto_delete": false,
 	 "arguments":{
 	     "x-dead-letter-exchange":"lega.dead",
 	     "x-queue-type": "classic",
@@ -190,6 +121,8 @@ cat > /etc/rabbitmq/definitions.json <<EOF
 
     ],
     "exchanges": [
+	{"name":"testing", "vhost":"/", "type":"topic", "durable":true, "auto_delete":false, "internal":false, "arguments":{}},
+
 
 	{"name":"lega", "vhost":"/", "type":"topic", "durable":true, "auto_delete":false, "internal":false, "arguments":{}},
 	{"name":"lega.dead", "vhost":"/", "type":"topic", "durable":true, "auto_delete":false, "internal":false, "arguments":{}},
@@ -252,6 +185,7 @@ cat > /etc/rabbitmq/definitions.json <<EOF
 	  "routing_key":"clean.completed"},
 
 
+
 	{"source":"lega", "vhost":"/", "destination_type":"exchange", "arguments":{},
 	 "destination":"lega.ingestion",
 	 "routing_key":"ingest"},
@@ -262,24 +196,16 @@ cat > /etc/rabbitmq/definitions.json <<EOF
 
 
 	{ "source":"lega.ingestion", "vhost": "/", "destination_type":"queue", "arguments":{},
-	  "destination":"ingestion-1",
-	  "routing_key":"1"},
-
-	{ "source":"lega.ingestion", "vhost": "/", "destination_type":"queue", "arguments":{},
-	  "destination":"ingestion-2",
-	  "routing_key":"1"},
-
-	{ "source":"lega.ingestion", "vhost": "/", "destination_type":"queue", "arguments":{},
 	  "destination":"ingestion-3",
 	  "routing_key":"1"},
 
-	{ "source":"lega.ingestion", "vhost": "/", "destination_type":"queue", "arguments":{},
-	  "destination":"ingestion-4",
-	  "routing_key":"1"},
+
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
 	  "destination":"vault.db",
 	  "routing_key":"relay.vault.db"},
+
+
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
 	  "destination":"dispatch",
@@ -296,34 +222,6 @@ cat > /etc/rabbitmq/definitions.json <<EOF
 	{ "source":"lega.dead", "vhost": "/", "destination_type":"queue", "arguments":{},
 	  "destination":"lega.dead",
 	  "routing_key":"#"}
+
     ]
 }
-EOF
-
-cat > /etc/rabbitmq/enabled_plugins <<EOF
-[rabbitmq_management,rabbitmq_consistent_hash_exchange,rabbitmq_federation,rabbitmq_federation_management,rabbitmq_shovel,rabbitmq_shovel_management].
-EOF
-
-chown rabbitmq:rabbitmq /etc/rabbitmq/definitions.json
-chown rabbitmq:rabbitmq /etc/rabbitmq/rabbitmq.conf
-chown rabbitmq:rabbitmq /etc/rabbitmq/enabled_plugins
-
-chmod 600 /etc/rabbitmq/definitions.json
-chmod 600 /etc/rabbitmq/rabbitmq.conf
-chmod 600 /etc/rabbitmq/enabled_plugins
-
-# allow the container to be started with `--user`
-if [[ "$1" == rabbitmq* ]] && [ "$(id -u)" = '0' ]; then
-	if [ "$1" = 'rabbitmq-server' ]; then
-		find /var/lib/rabbitmq \! -user rabbitmq -exec chown rabbitmq '{}' +
-	fi
-
-	exec su-exec rabbitmq "$BASH_SOURCE" "$@"
-fi
-
-# if long and short hostnames are not the same, use long hostnames
-if [ -z "${RABBITMQ_USE_LONGNAME:-}" ] && [ "$(hostname)" != "$(hostname -s)" ]; then
-	: "${RABBITMQ_USE_LONGNAME:=true}"
-fi
-
-exec "$@"
