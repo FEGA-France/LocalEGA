@@ -1,0 +1,36 @@
+[DEFAULT]
+logger = /etc/ega/logger.json
+
+master_pubkey = c4gh_master_pubkey
+service_key = c4gh_service_seckey
+
+# 8 MB
+bufsize = 8388608
+
+# 64 MB
+#bufsize = 67108864
+
+skip_reencryption = true
+
+[inbox]
+# %s will be the username
+location = /ega/inbox/%s
+
+[staging]
+# %s will be the username
+location = /ega/staging/%s
+
+[broker]
+connection = amqp://admin:__CHANGEME__@mq:5672/%2F
+
+exchange = lega
+qos=1
+
+[c4gh_master_pubkey]
+loader_class = C4GHFilePubKey
+filepath = /etc/ega/master.pubkey
+
+[c4gh_service_seckey]
+loader_class = C4GHFileKey
+passphrase = __CHANGEME_PASSPHRASE__
+filepath = /etc/ega/service.seckey

@@ -1,0 +1,6 @@
+aiormq
+crypt4gh>=1.8
+# liburing==2024.5.3
+git+https://github.com/YoSTEALTH/Liburing@2024.5.3
+# For elasticsearch
+elasticsearch[async]==8.12.0
