@@ -1,4 +1,9 @@
 
+CREATE INDEX ON public.file_table (display_name);
+
+CREATE INDEX ON private.file_table (decrypted_sha256) INCLUDE (stable_id);
+CREATE INDEX ON private.file_table (original_encrypted_sha256) INCLUDE (stable_id);
+
 -- #####################
 -- Users
 -- #####################
@@ -18,3 +23,5 @@ CREATE INDEX idx_user_id_user_password_table
 ON private.user_password_table
 USING btree (user_id ASC NULLS LAST)
 ;
+
+

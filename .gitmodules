@@ -14,3 +14,17 @@
 [submodule "src/vault/pg_sqlite_fs"]
 	path = src/vault/pg_sqlite_fs
 	url = https://github.com/silverdaz/pg_sqlite_fs.git
+[submodule "src/vault-db/deps/librabbitmq"]
+	path = src/vault-db/deps/librabbitmq
+	url = https://github.com/alanxz/rabbitmq-c
+	branch = 84b81cd97a1b5515d3d4b304796680da24c666d8
+[submodule "src/vault-db/deps/libsodium"]
+	path = src/vault-db/deps/libsodium
+	url = https://github.com/jedisct1/libsodium
+	branch = 3e7548c62f68909461a67f396be0494584a7aae4
+[submodule "src/vault-db/deps/pg_crypt4gh"]
+	path = src/vault-db/deps/pg_crypt4gh
+	url = https://github.com/silverdaz/pg_crypt4gh
+[submodule "src/vault-db/deps/pg_amqp"]
+	path = src/vault-db/deps/pg_amqp
+	url = https://github.com/silverdaz/pg_amqp

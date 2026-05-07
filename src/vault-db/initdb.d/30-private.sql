@@ -36,14 +36,19 @@ CREATE TABLE private.dataset_permission_table (
 
 CREATE TABLE private.file_table (
     stable_id            text NOT NULL PRIMARY KEY REFERENCES public.file_table(stable_id),
-    mount_point   text DEFAULT current_setting('vault.dirpath'),
+    -- mount_point   text DEFAULT current_setting('vault.dirpath'),
     relative_path text,
-    header        bytea,
+    header        bytea, -- not replicated
+    header_size   integer GENERATED ALWAYS AS (octet_length(header)) VIRTUAL,
     payload_size  bigint,
 
-       payload_checksum       VARCHAR(128) NULL, -- NOT NULL, -- only sha256
-       decrypted_checksum     VARCHAR(128) NULL, -- NOT NULL, -- only sha256
-
+    -- only sha256
+    payload_sha256            bytea NULL CHECK (payload_sha256 IS NULL
+                                                OR length(payload_sha256) = 32),
+    decrypted_sha256          bytea NULL CHECK (decrypted_sha256 IS NULL
+                                                OR length(decrypted_sha256) = 32),
+    original_encrypted_sha256 bytea NULL CHECK (original_encrypted_sha256 IS NULL
+                                                OR length(original_encrypted_sha256) = 32),
 
     -- auditing
     created_by_db_user      text NOT NULL DEFAULT CURRENT_USER,

@@ -14,7 +14,6 @@ CREATE TRIGGER dataset_table_update_edited_columns
 BEFORE UPDATE ON public.dataset_table
 FOR EACH ROW EXECUTE PROCEDURE public.update_edited_columns();
 
-
 CREATE TRIGGER dac_table_update_edited_columns
 BEFORE UPDATE ON public.dac_table
 FOR EACH ROW EXECUTE PROCEDURE public.update_edited_columns();
@@ -31,13 +30,11 @@ CREATE TRIGGER dataset_file_table_update_edited_columns
 BEFORE UPDATE ON public.dataset_file_table
 FOR EACH ROW EXECUTE PROCEDURE public.update_edited_columns();
 
--- public.file_table
-CREATE TRIGGER file_table_update_edited_columns
+CREATE TRIGGER public_file_table_update_edited_columns
 BEFORE UPDATE ON public.file_table
 FOR EACH ROW EXECUTE PROCEDURE public.update_edited_columns();
 
--- private.file_table
-CREATE TRIGGER file_table_update_edited_columns
+CREATE TRIGGER private_file_table_update_edited_columns
 BEFORE UPDATE ON private.file_table
 FOR EACH ROW EXECUTE PROCEDURE public.update_edited_columns();
 
@@ -56,4 +53,3 @@ FOR EACH ROW EXECUTE PROCEDURE public.update_edited_columns();
 CREATE TRIGGER dataset_permission_table_update_edited_columns
 BEFORE UPDATE ON private.dataset_permission_table
 FOR EACH ROW EXECUTE PROCEDURE public.update_edited_columns();
-

@@ -45,6 +45,10 @@ log_min_duration_statement='5000' # in milliseconds
 
 log_min_messages = info
 
+# Fixed line prefix for Vector.dev log shipping to elasticsearch
+log_line_prefix = '[%n][%m][%p][%r][%l] '
+
+
 #------------------------------------------------------------------------------
 # PROCESS TITLE
 #------------------------------------------------------------------------------
@@ -67,7 +71,7 @@ default_text_search_config = 'pg_catalog.english'
 #------------------------------------------------------------------------------
 # Crypt4GH settings
 #------------------------------------------------------------------------------
-shared_preload_libraries='pg_crypt4gh'
+shared_preload_libraries='pg_crypt4gh,pg_amqp'
 
 crypt4gh.master_seckey = '3030303030303030303030303030303030303030303030303030303030303030'
 #
@@ -75,7 +79,7 @@ crypt4gh.master_seckey = '303030303030303030303030303030303030303030303030303030
 # python -c 'import crypt4gh.keys; print(crypt4gh.keys.get_private_key("/path/to/master.key.sec", lambda: "passphrase").hex())'
 #
 
-vault.dirpath = '/path/to/vault/directory/for/distribution'
+amqp.database = 'ega'
 
 #------------------------------------------------------------------------------
 # SQLite box settings

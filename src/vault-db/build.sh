@@ -58,11 +58,11 @@ cat > /tmp/pg.conf <<EOF
 listen_addresses='localhost'
 port = 5432
 password_encryption=scram-sha-256
-wal_level=minimal
+wal_level=logical
 max_wal_senders=0
+shared_preload_libraries='pg_crypt4gh,pg_amqp'
 crypt4gh.master_seckey='3030303030303030303030303030303030303030303030303030303030303030'
-shared_preload_libraries='pg_crypt4gh'
-sqlite_fs.location='/tmp/non-existing'
+amqp.database = 'ega'
 log_min_messages = warning
 EOF
 

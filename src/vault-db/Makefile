@@ -1,26 +1,27 @@
 
-DB_DATA=$(shell pwd)/data
-SERVICE=vault-db
-IMG=fega/vault-db:latest
-
-PG_SU_PASSWORD=very-strong-password
-DATABASE_NAME=ega
-
 all: latest
-
-$(DB_DATA):
-	mkdir -p $@
-	-chown -R 999:999 $@ # that the postgres user and group in the container
 
 build: ARGS+=--target BUILD
 build latest:
 	docker build $(ARGS) -t fega/vault-db:$@ .
 
 ###########################
+DB_DATA=$(shell pwd)/data
+
+$(DB_DATA):
+	mkdir -p $@
+	-chown -R 999:999 $@ # that the postgres user and group in the container
+
 rm:
 	rm -rI $(DB_DATA)
 
 ###########################
+DATABASE_NAME=ega
+SERVICE=vault-db
+IMG=fega/vault-db:latest
+
+PG_SU_PASSWORD=supersecret
+# Reset at the command-line "make PG_SU_PASSWORD=verysecret"
 
 init: | $(DB_DATA)
 init: MOUNTPOINTS=

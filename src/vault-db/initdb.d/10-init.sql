@@ -11,9 +11,12 @@ SET row_security = off;
 SET default_tablespace = '';
 
 
+-- To input data (mostly the AMQP background worker)
+-- CREATE USER lega WITH LOGIN PASSWORD NULL;
 
--- To input data
-CREATE USER lega WITH LOGIN PASSWORD NULL;
-
--- To distribute data
+-- To export data
 CREATE USER distribution WITH LOGIN PASSWORD NULL;
+
+-- To consume the dashboard
+-- CREATE USER dashboard WITH LOGIN PASSWORD NULL;
+

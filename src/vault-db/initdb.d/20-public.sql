@@ -164,7 +164,7 @@ CREATE TABLE public.file_table (
 	filesize                  bigint,-- NOT NULL,
 
 	display_name              text,
-	extension                 text,
+	extension                 text GENERATED ALWAYS AS (substring(display_name FROM '\.([^\.]*)$')) VIRTUAL,
 
     -- auditing
     created_by_db_user      text NOT NULL DEFAULT CURRENT_USER,
@@ -176,9 +176,9 @@ CREATE TABLE public.file_table (
 
 CREATE TABLE public.dataset_file_table (
 
-	PRIMARY KEY (dataset_stable_id, file_stable_id),
-	dataset_stable_id  text NOT NULL, -- REFERENCES public.dataset_table(stable_id),
-	file_stable_id     text NOT NULL REFERENCES public.file_table(stable_id),
+    dataset_stable_id  text NOT NULL, -- REFERENCES public.dataset_table(stable_id),
+    file_stable_id     text NOT NULL REFERENCES public.file_table(stable_id),
+    PRIMARY KEY (dataset_stable_id, file_stable_id),
 
     -- auditing
     created_by_db_user      text NOT NULL DEFAULT CURRENT_USER,
@@ -186,4 +186,3 @@ CREATE TABLE public.dataset_file_table (
     edited_by_db_user       text NOT NULL DEFAULT CURRENT_USER,
     edited_at               timestamp(6) with time zone NOT NULL DEFAULT now()
 );
-
