@@ -9,6 +9,7 @@ EGAF_COUNTER = 0
 
 EGAD = "EGAD90000000123"
 EGAF = {} # checksum -> accession id
+EGAD_mappings = set()
 
 async def mq_send(publish_channel, message, routing_key, properties=None):
     return await publish_channel.basic_publish(json.dumps(message).encode(),
@@ -46,6 +47,10 @@ async def on_message(message, publish_channel):
     if routing_key == 'files.verified':
         return await send_accession(publish_channel, correlation_id, body)
     if routing_key == 'files.completed':
+        # Add mapping
+        global EGAD_mappings
+        EGAD_mappings.add( get_file_accession(body['decrypted_checksums'][0]['value']) )
+
         dataset_id = await send_mapping(publish_channel, body)
         await send_dataset_release(publish_channel, dataset_id)
         return
@@ -89,11 +94,11 @@ async def send_accession(publish_channel, correlation_id, body):
 
 
 async def send_mapping(publish_channel, body):
-    global EGAD
+    # global EGAD, EGAD_mappings
     message = {
         "type":"mapping",
         "dataset_id": EGAD,
-        "accession_ids": [ get_file_accession(body['decrypted_checksums'][0]['value']) ]
+        "accession_ids": list(EGAD_mappings)
     }
     LOG.debug('Sending to FEGA: %s', message)
     await mq_send(publish_channel, message, 'dataset.mapping')
