@@ -5,9 +5,6 @@
 	path = src/vault/libsodium
 	url = https://github.com/jedisct1/libsodium.git
 	branch = stable
-[submodule "inbox"]
-	path = src/inbox
-	url = https://github.com/EGA-archive/LocalEGA-inbox.git
 [submodule "distribution"]
 	path = src/distribution
 	url = https://github.com/EGA-archive/LocalEGA-distribution.git
