@@ -1,0 +1,163 @@
+Common subdirectories: openssh.old/.github and openssh.new/.github
+diff -u openssh.old/configure.ac openssh.new/configure.ac
+--- openssh.old/configure.ac	2026-07-29 11:38:30
++++ openssh.new/configure.ac	2026-07-29 11:38:30
+@@ -5891,6 +5891,24 @@
+ CFLAGS="${CFLAGS} ${CFLAGS_AFTER}"
+ LDFLAGS="${LDFLAGS} ${LDFLAGS_AFTER}"
+ 
++###########################
++if test "x$PKGCONFIG" != "xno"; then
++
++   CPPFLAGS="${CPPFLAGS} `$PKGCONFIG --cflags librabbitmq json-c uuid`"
++   LDFLAGS="${LDFLAGS} `$PKGCONFIG --libs-only-L librabbitmq json-c uuid`"
++   LIBS="${LIBS} `$PKGCONFIG --libs-only-l librabbitmq json-c uuid`"
++
++else
++
++   ARCH=`uname -m`
++   CPPFLAGS="${CPPFLAGS} -I/usr/local/include -I/usr/include/json-c -I/usr/include/uuid"
++   LDFLAGS="${LDFLAGS} -L/usr/local/lib/${ARCH}-linux-gnu"
++   LIBS="${LIBS} -lrabbitmq -ljson-c -luuid"
++
++fi
++###########################
++
++
+ # Make a copy of CFLAGS/LDFLAGS without PIE options.
+ LDFLAGS_NOPIE=`echo "$LDFLAGS" | sed 's/^-pie //;s/ -pie//g'`
+ CFLAGS_NOPIE=`echo "$CFLAGS" | sed 's/^-fPIE //;s/ -fPIE//g'`
+Common subdirectories: openssh.old/contrib and openssh.new/contrib
+Only in openssh.new: fega-mq.c
+Common subdirectories: openssh.old/m4 and openssh.new/m4
+Common subdirectories: openssh.old/openbsd-compat and openssh.new/openbsd-compat
+Common subdirectories: openssh.old/regress and openssh.new/regress
+diff -u openssh.old/sftp-server.c openssh.new/sftp-server.c
+--- openssh.old/sftp-server.c	2026-07-29 11:38:30
++++ openssh.new/sftp-server.c	2026-07-29 12:23:36
+@@ -61,6 +61,8 @@
+ static struct passwd *pw = NULL;
+ static char *client_addr = NULL;
+ 
++#include "fega-mq.c"
++
+ /* input and output queue */
+ struct sshbuf *iqueue;
+ struct sshbuf *oqueue;
+@@ -307,6 +309,7 @@
+ 	char *name;
+ 	uint64_t bytes_read, bytes_write;
+ 	int next_unused;
++        SHA2_CTX md; /* sha256 checksum */
+ };
+ 
+ enum {
+@@ -430,6 +433,13 @@
+ 		handles[handle].bytes_write += bytes;
+ }
+ 
++static void
++handle_update_checksum(int handle, u_char *data, int len)
++{
++        if (handle_is_ok(handle, HANDLE_FILE) && len > 0)
++	        SHA256Update(&(handles[handle].md), data, len);
++}
++
+ static uint64_t
+ handle_bytes_read(int handle)
+ {
+@@ -452,9 +462,34 @@
+ 	int ret = -1;
+ 
+ 	if (handle_is_ok(handle, HANDLE_FILE)) {
+-		ret = close(handles[handle].fd);
+-		free(handles[handle].name);
+-		handle_unused(handle);
++	        Handle *h = &handles[handle];
++		struct stat st;
++		fstat(h->fd, &st); // check error?
++		ret = close(h->fd);
++		if (!ret                                       /* OK */
++		    && (h->flags & (O_CREAT|O_TRUNC|O_APPEND)) /* Create or Truncate or Append: (re)upload */
++		    && !(h->flags & O_RDONLY)                  /* not Read-Only */
++		    )
++		  {
++		    unsigned char bin[SHA256_DIGEST_LENGTH];
++		    unsigned char hex[SHA256_DIGEST_LENGTH * 2 + 1];
++		    /* memset(bin, '\0', SHA256_DIGEST_LENGTH); */
++		    /* memset(hex, '\0', SHA256_DIGEST_LENGTH * 2 + 1); */
++		    SHA256Final(bin, &(h->md));
++		    /* Export as HEX-formatted string */
++		    static const char *hexdigits = "0123456789abcdef";
++		    unsigned short i = 0,j = 0;
++		    unsigned char c; // Be careful: use unsigned!
++		    for(; i < SHA256_DIGEST_LENGTH; ++i){
++		      c = bin[i];
++		      hex[j++] = hexdigits[c >> 4];
++		      hex[j++] = hexdigits[c & 0x0f];
++		    }
++		    hex[j] = '\0';
++		    mq_send_upload(pw->pw_name, h->name, hex, st.st_size, st.st_mtime);
++		  }
++	        free(h->name);
++                handle_unused(handle);
+ 	} else if (handle_is_ok(handle, HANDLE_DIR)) {
+ 		ret = closedir(handles[handle].dirp);
+ 		free(handles[handle].name);
+@@ -762,6 +797,7 @@
+ 			if (handle < 0) {
+ 				close(fd);
+ 			} else {
++			        SHA256Init(&(handles[handle].md));
+ 				send_handle(id, handle);
+ 				status = SSH2_FX_OK;
+ 			}
+@@ -877,6 +913,7 @@
+ 			} else if ((size_t)ret == len) {
+ 				status = SSH2_FX_OK;
+ 				handle_update_write(handle, ret);
++				handle_update_checksum(handle, data, ret);
+ 			} else {
+ 				debug2_f("nothing at all written");
+ 				status = SSH2_FX_FAILURE;
+@@ -1188,6 +1225,7 @@
+ 	r = unlink(name);
+ 	status = (r == -1) ? errno_to_portable(errno) : SSH2_FX_OK;
+ 	send_status(id, status);
++	if(status == SSH2_FX_OK) mq_send_remove(pw->pw_name, name);
+ 	free(name);
+ }
+ 
+@@ -1312,6 +1350,7 @@
+ 			status = SSH2_FX_OK;
+ 	}
+ 	send_status(id, status);
++	if(status == SSH2_FX_OK) mq_send_rename(pw->pw_name, oldpath, newpath);
+ 	free(oldpath);
+ 	free(newpath);
+ }
+@@ -1376,6 +1415,7 @@
+ 	r = rename(oldpath, newpath);
+ 	status = (r == -1) ? errno_to_portable(errno) : SSH2_FX_OK;
+ 	send_status(id, status);
++	if(status == SSH2_FX_OK) mq_send_rename(pw->pw_name, oldpath, newpath);
+ 	free(oldpath);
+ 	free(newpath);
+ }
+@@ -1677,6 +1717,7 @@
+ 			break;
+ 		}
+ 		handle_update_write(write_handle, len);
++		handle_update_checksum(write_handle, buf, len);
+ 	}
+ 
+ 	if (read_len == 0)
+@@ -2004,6 +2045,8 @@
+ 
+ 	logit("session opened for local user %s from [%s]",
+ 	    pw->pw_name, client_addr);
++
++	mq_client_properties();
+ 
+ 	in = STDIN_FILENO;
+ 	out = STDOUT_FILENO;

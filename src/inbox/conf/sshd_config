@@ -1,0 +1,33 @@
+LogLevel INFO
+Port 22
+Protocol 2
+
+Banner  /etc/ega/banner
+HostKey /etc/ega/ssh_host_rsa_key
+HostKey /etc/ega/ssh_host_ed25519_key
+
+# Authentication
+UsePAM yes
+AuthenticationMethods "publickey" "keyboard-interactive:pam"
+PubkeyAuthentication yes
+PasswordAuthentication no
+ChallengeResponseAuthentication yes
+
+# Faster connection
+UseDNS no
+
+# Limited access
+AllowUsers lega
+DenyUsers rabbitmq,ega-sshd,root
+PermitRootLogin no
+X11Forwarding no
+AllowTcpForwarding no
+PermitTunnel no
+
+AcceptEnv LANG LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES
+AcceptEnv LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT
+AcceptEnv LC_IDENTIFICATION LC_ALL LANGUAGE
+AcceptEnv XMODIFIERS
+
+Subsystem sftp internal-sftp -u 077 -d /upload -l INFO
+ChrootDirectory %h
