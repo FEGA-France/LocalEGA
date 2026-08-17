@@ -50,20 +50,22 @@ RUN chgrp shadow /etc/shadow && \
     chmod 640    /etc/shadow && \
 #
     mkdir -p /etc/ega        && \
-    chgrp lega /etc/ega      && \
+    chown lega:lega /etc/ega      && \
     chmod 2770 /etc/ega      && \
+# owned by root, not changeable
+    mkdir -m 755 /ega        && \
 #
     mkdir -p /ega/staging    && \
-    chgrp lega /ega/staging  && \
-    chmod 2770 /ega/staging  && \
-#
+    chown lega:lega /ega/staging  && \
+    chmod 2700 /ega/staging  &&\
+# Group readable and traversable
     mkdir -p /ega/vault    && \
-    chgrp lega /ega/vault  && \
-    chmod 2770 /ega/vault  && \
+    chown lega:lega /ega/vault  && \
+    chmod 2750 /ega/vault && \
 #
     mkdir -p /ega/backup    && \
-    chgrp lega /ega/backup  && \
-    chmod 2770 /ega/backup
+    chown lega:lega /ega/backup  && \
+    chmod 2700 /ega/backup
 
 
 # We call it code so make it easier for the logger.json
@@ -72,7 +74,6 @@ COPY archiver /ega/code
 VOLUME /ega/staging
 VOLUME /ega/vault
 VOLUME /ega/backup
-VOLUME /ega/inbox
 
 USER lega
 WORKDIR /ega

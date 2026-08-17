@@ -17,6 +17,3 @@ SET default_tablespace = '';
 -- To export data
 CREATE USER distribution WITH LOGIN PASSWORD NULL;
 
--- To consume the dashboard
--- CREATE USER dashboard WITH LOGIN PASSWORD NULL;
-

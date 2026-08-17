@@ -6,9 +6,9 @@
 __title__ = 'Local EGA'
 __version__ = '2.0'
 __author__ = 'Frédéric Haziza'
-__author_email__ = 'silverdaz@gmail.com'
+__author_email__ = 'frederic.haziza@france-bioinformatique.fr'
 __license__ = 'Apache License 2.0'
-__copyright__ = __title__ + ' @ CRG, Barcelona'
+__copyright__ = __title__ + ' @ IFB, Marseille'
 
 import sys
 assert sys.version_info >= (3, 10), "This tool requires python version 3.10 or higher"

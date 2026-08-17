@@ -2,6 +2,13 @@
 
 set -e
 
+# Exit if failed ?
+mkdir -p /ega/inbox/upload
+chown root:root /ega/inbox
+chmod 755 /ega/inbox
+chown lega:lega /ega/inbox/upload
+chmod 2700 /ega/inbox/upload
+
 echo 'Creating rsa and ed25519 keys (on each boot)'
 rm -f /etc/{ega,ssh}/ssh_host_{rsa,ed25519}_key
 # No passphrase so far

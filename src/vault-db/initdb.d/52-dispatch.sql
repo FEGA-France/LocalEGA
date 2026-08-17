@@ -28,7 +28,7 @@ BEGIN
 	    -- Use itself as dummy key
 	    SELECT * INTO _pubkey
             FROM crypt4gh.parse_pubkey(
-	     	     'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+oXzyoURWMTEkWQ9yvll2f8VuHnq4VZdVa2GzF68IW master@fega'
+	     	     'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH+oXzyoURWMTEkWQ9yvll2f8VuHnq4VZdVa2GzF68IW master@lega'
 		 );
 
 	    -- Check if properly encrypted: reencrypt the header for dummy key!

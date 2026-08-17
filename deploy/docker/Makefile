@@ -1,27 +1,32 @@
 SHELL := /bin/bash
+ARGS = 
 
-LEGA_UID=$(shell id -u)
-LEGA_GID=$(shell id -g)
+all: images db
 
-all: storage images db
+DB_DATA_VOLUME=lega-vault-db
 
 #############################
 ## Build docker images
 #############################
 
 image-inbox:
-	$(MAKE) -C ../../src/inbox latest LEGA_UID=$(shell id -u) LEGA_GID=$(shell id -g)
-image-vault:
-	$(MAKE) -C ../../src/vault-db latest PG_SU_PASSWORD=fake
+	$(MAKE) -C ../../src/inbox latest ARGS=$(ARGS)
+image-vault-db:
+	$(MAKE) -C ../../src/vault-db latest ARGS=$(ARGS) PG_SU_PASSWORD=fake
 image-dispatcher:
-	$(MAKE) -C ../../src/ingestion/dispatcher latest
+	$(MAKE) -C ../../src/ingestion/dispatcher latest ARGS=$(ARGS)
 image-ingester:
-	$(MAKE) -C ../../src/ingestion/ingester latest LEGA_UID=$(shell id -u) LEGA_GID=$(shell id -g)
+	$(MAKE) -C ../../src/ingestion/ingester latest ARGS=$(ARGS)
 image-archiver:
-	$(MAKE) -C ../../src/ingestion/archiver latest LEGA_UID=$(shell id -u) LEGA_GID=$(shell id -g)
+	$(MAKE) -C ../../src/ingestion/archiver latest ARGS=$(ARGS)
+image-mq:
+	$(MAKE) -C ../../src/mq latest ARGS=$(ARGS)
 
-image-ingestion: image-dispatcher image-ingester image-archiver
-images: image-inbox image-vault image-ingestion
+
+images: image-dispatcher image-ingester image-archiver
+images: image-inbox image-vault-db image-mq
+
+
 
 #############################
 ## Initialize the database
@@ -34,9 +39,9 @@ confs/pg_su_password:
 	@echo -n 'super-secret' > $@
 	@chmod 600 $@
 
-init-vault: confs/pg_su_password
-	$(MAKE) -C ../../src/vault-db init \
-	PG_SU_PASSWORD=$(shell cat $<) DB_DATA=$(shell pwd)/data/vault-db
+init-vault: confs/pg_su_password $(DB_DATA_VOLUME)
+	@$(MAKE) -C ../../src/vault-db init \
+	PG_SU_PASSWORD=$(shell cat $<) DB_DATA=$(DB_DATA_VOLUME)
 
 # Connect to the database from the host machine
 export PGHOST=localhost
@@ -48,6 +53,7 @@ psql:
 	@psql
 
 
+.PHONY: up-db down-db setup-db wait-db
 up-db:
 	docker-compose up -d vault-db
 down-db:
@@ -59,32 +65,14 @@ setup-db:
 wait-db:
 	@sleep 2
 
-db: init-vault up-db wait-db setup-db down-db
+.PHONY: $(DB_DATA_VOLUME)
+$(DB_DATA_VOLUME):
+	@docker volume create $@
+rm-db:
+	-docker volume rm $(DB_DATA_VOLUME)
 
-#############################
-## Initialize the data directories
-#############################
+db: down-db rm-db init-vault up-db wait-db setup-db
 
-# with the setgid bit, the group can _read_ the inbox files of each user.
-# Other users then the owner can't, because they're not in the group
-data/disks/inbox:
-	mkdir -p $@
-	chmod 2750 $@
-
-data/disks/staging:
-	mkdir -p $@
-	chmod 700 $@
-
-# the group needs r,x in order to distribute files
-data/disks/vault:
-	mkdir -p $@
-	chmod 750 $@
-
-data/disks/vault.bkp:
-	mkdir -p $@
-	chmod 700 $@
-
-storage: data/disks/inbox data/disks/staging data/disks/vault data/disks/vault.bkp
 
 #############################
 ## Utility targets

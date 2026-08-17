@@ -9,7 +9,9 @@ The following environment variables can be used to configure the broker:
 | Variable | Description |
 |---------:|:------------|
 | `MQ_PASSWORD_HASH` | Default user password hash (with admin rights) |
+| `MQ_PASSWORD_HASH_LEGA` | Default user password hash (no admin rights) |
 | `CEGA_CONNECTION` | DSN URL for the shovels and federated queues with CentralEGA |
+| `INBOX_CONNECTION` | DSN URL for inbox federated queue |
 
 If you want persistent data, you can use a named volume or a bind-mount and make it point to `/var/lib/rabbitmq`.
 

@@ -30,4 +30,4 @@ AcceptEnv LC_IDENTIFICATION LC_ALL LANGUAGE
 AcceptEnv XMODIFIERS
 
 Subsystem sftp internal-sftp -u 077 -d /upload -l INFO
-ChrootDirectory %h
+ChrootDirectory /ega/inbox

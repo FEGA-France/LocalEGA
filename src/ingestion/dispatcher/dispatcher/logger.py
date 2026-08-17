@@ -249,7 +249,7 @@ class AsyncBufferedElasticSearchHandler(logging.Handler):
 
     def __init__(self,
                  url: str,
-                 index: str = 'fega',
+                 index: str = 'lega',
                  retry_after: int = 1,
                  maxsize: int = 5000,
                  keep_latest: bool = False,

@@ -1,29 +1,26 @@
+SHELL := /bin/bash
+COMMIT ?= $(shell git rev-parse HEAD)
+ARGS = 
+
+IMG=lega/vault-db
+SERVICE=vault-db
+
+###########################
+DATABASE_NAME=ega
+PG_SU_PASSWORD=supersecret
+# Reset at the command-line "make PG_SU_PASSWORD=verysecret"
+
+.PHONY: latest build
 
 all: latest
 
 build: ARGS+=--target BUILD
 build latest:
-	docker build $(ARGS) -t fega/vault-db:$@ .
+	docker build $(ARGS) -t $(IMG):$(COMMIT) .
+	docker tag $(IMG):$(COMMIT) $(IMG):$@
 
-###########################
-DB_DATA=$(shell pwd)/data
 
-$(DB_DATA):
-	mkdir -p $@
-	-chown -R 999:999 $@ # that the postgres user and group in the container
 
-rm:
-	rm -rI $(DB_DATA)
-
-###########################
-DATABASE_NAME=ega
-SERVICE=vault-db
-IMG=fega/vault-db:latest
-
-PG_SU_PASSWORD=supersecret
-# Reset at the command-line "make PG_SU_PASSWORD=verysecret"
-
-init: | $(DB_DATA)
 init: MOUNTPOINTS=
 init: ENVVARS=
 
@@ -41,12 +38,15 @@ else
 init: ENTRYPOINT=-it --entrypoint /ega/build.sh --user root
 endif
 init:
+ifeq ($(DB_DATA),)
+	$(error "Please specify the DB_DATA variable")
+endif
 	docker run --rm \
 	$(MOUNTPOINTS) \
 	$(ENVVARS) \
 	--hostname "$(SERVICE)-build" \
 	--name "$(SERVICE)-build" \
-	$(ENTRYPOINT) $(IMG) $(CMD)
+	$(ENTRYPOINT) $(IMG):latest $(CMD)
 
 down:
 	-docker stop $(SERVICE)-build

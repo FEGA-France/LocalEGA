@@ -1,4 +1,5 @@
-FROM debian:13-slim AS build
+# based on debian:trixie-slim
+FROM python:3.14-slim AS build
 
 RUN apt-get update && \
 #    apt-get upgrade && \
@@ -21,7 +22,7 @@ RUN \
 root:x:0:0:root:/root:/bin/bash
 # _apt:x:42:65534::/nonexistent:/usr/sbin/nologin
 ega-sshd:x:$((LEGA_UID + 1)):$((LEGA_GID + 1)):Privilege-separated SSH:/var/empty/sshd:/usr/sbin/nologin
-lega:x:${LEGA_UID}:${LEGA_GID}:Local EGA:/ega/inbox:/usr/sbin/nologin
+lega:x:${LEGA_UID}:${LEGA_GID}:Local EGA:/home/lega:/usr/sbin/nologin
 rabbitmq:x:$((LEGA_UID + 2)):$((LEGA_GID + 2)):RabbitMQ:/var/lib/rabbitmq:/usr/sbin/nologin
 EOFPWD
 root:x:0:
@@ -40,8 +41,11 @@ EOFSHADOW
 RUN chgrp shadow /etc/shadow && \
     chmod 640    /etc/shadow && \
 # /var/empty/sshd must be owned by root and not group or world-writable.
-    mkdir -p /var/empty/sshd && \
-    chmod 700 /var/empty/sshd
+    mkdir -p /var/empty/sshd   && \
+    chmod 700 /var/empty/sshd  &&\
+    mkdir -p /home/lega/.ssh   && \
+    chmod -R 700 /home/lega    && \
+    chown -R lega:lega /home/lega
 
 COPY src/openssh /var/src/openssh
 COPY src/patches /var/src/patches
@@ -74,6 +78,9 @@ RUN  make && \
 
 COPY conf/entrypoint.sh /usr/local/bin/entrypoint.sh
 
+# Python rescan.py
+RUN pip install -U pip aiormq
+
 # for test
 RUN mkdir /etc/ega && \
     chmod 755 /usr/local/bin/entrypoint.sh
@@ -89,7 +96,7 @@ FROM rabbitmq:4.2.6 AS rabbitmq
 ##
 #################################################
 
-FROM debian:13-slim
+FROM python:3.14-slim
 
 LABEL maintainer="EGA System Developers"
 LABEL org.label-schema.schema-version="1.0"
@@ -116,6 +123,17 @@ COPY --from=build /etc/passwd /etc/passwd
 COPY --from=build /etc/shadow /etc/shadow
 COPY --from=build /etc/group /etc/group
 
+COPY --from=build --chown=lega:lega /home/lega       /home/lega
+COPY --from=build /var/empty/sshd  /var/empty/sshd
+
+COPY --from=build /usr/sbin/gosu /usr/sbin/gosu
+
+# ARG ARCH=x86_64
+# COPY --from=build /usr/lib/$ARCH-linux-gnu/ /usr/lib/$ARCH-linux-gnu/
+COPY --from=build /usr/lib /usr/lib
+COPY --from=build /usr/local/bin /usr/local/bin
+COPY --from=build /usr/local/lib /usr/local/lib
+
 # RabbitMQ files
 COPY --from=rabbitmq /opt/erlang /opt/erlang
 COPY --from=rabbitmq /opt/openssl /opt/openssl
@@ -125,15 +143,12 @@ COPY --from=rabbitmq --chown=rabbitmq:rabbitmq /var/lib/rabbitmq /var/lib/rabbit
 COPY --from=rabbitmq --chown=rabbitmq:rabbitmq /var/log/rabbitmq /var/log/rabbitmq
 COPY --from=rabbitmq --chown=rabbitmq:rabbitmq /tmp/rabbitmq-ssl /tmp/rabbitmq-ssl
 
-ARG ARCH=x86_64
-
 # OpenSSH files
 COPY --from=build /opt/openssh /opt/openssh
-COPY --from=build /usr/local/bin /usr/local/bin
-COPY --from=build /usr/local/lib /usr/local/lib
-COPY --from=build /usr/lib/$ARCH-linux-gnu/ /usr/lib/$ARCH-linux-gnu/
 
-COPY --from=build /usr/sbin/gosu /usr/sbin/gosu
+# Python rescan.py
+COPY --from=build /usr/local/lib/python3.14/ /usr/local/lib/python3.14/
+COPY --chmod=0755 src/rescan.py /usr/local/bin/ega-rescan
 
 RUN chmod 755 /usr/local/bin/entrypoint.sh && \
     mkdir -p /etc/ega          && \
@@ -144,14 +159,9 @@ RUN chmod 755 /usr/local/bin/entrypoint.sh && \
 # for the upload as lega:lega
     mkdir -m 700 /ega/inbox/upload && \
     chown lega:lega /ega/inbox/upload && \
-# for the upload as lega:lega
-    mkdir -m 700 /ega/inbox/.ssh && \
-    chown lega:lega /ega/inbox/.ssh && \
-# /var/empty/sshd must be owned by root and not group or world-writable.
-    mkdir -p /var/empty/sshd && \
-    chmod 700 /var/empty/sshd && \
 # make sure the metrics collector is re-enabled
     rm -f /etc/rabbitmq/conf.d/20-management_agent.disable_metrics_collector.conf
+
 
 COPY conf/sshd_config /etc/ega/sshd_config
 COPY conf/pam.ega /etc/pam.d/ega
@@ -160,6 +170,7 @@ COPY --chown=rabbitmq:rabbitmq conf/mq /etc/rabbitmq
 COPY conf/banner /etc/ega/banner
 
 VOLUME /ega/inbox/upload
+ENV FEGA_INBOX=/ega/inbox/upload
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 

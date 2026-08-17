@@ -53,7 +53,7 @@ log_line_prefix = '[%n][%m][%p][%r][%l] '
 # PROCESS TITLE
 #------------------------------------------------------------------------------
 
-cluster_name = 'pg-fega-vault'
+cluster_name = 'pg-lega-vault'
 update_process_title = on
 
 #------------------------------------------------------------------------------

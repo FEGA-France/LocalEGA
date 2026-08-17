@@ -50,16 +50,18 @@ RUN chgrp shadow /etc/shadow && \
     chmod 640    /etc/shadow && \
 #
     mkdir -p /etc/ega        && \
-    chgrp lega /etc/ega      && \
+    chown lega:lega /etc/ega      && \
     chmod 2770 /etc/ega      && \
+# owned by root, not changeable
+    mkdir -m 755 /ega        && \
 #
     mkdir -p /ega/inbox      && \
-    # chgrp lega /ega/inbox    && \
-    # chmod 2770 /ega/inbox    && \
+    chown lega:lega /ega/inbox    && \
+    chmod 2700 /ega/inbox    && \
 #
     mkdir -p /ega/staging    && \
-    chgrp lega /ega/staging  && \
-    chmod 2770 /ega/staging
+    chown lega:lega /ega/staging  && \
+    chmod 2700 /ega/staging
 
 
 # We call it code so make it easier for the logger.json

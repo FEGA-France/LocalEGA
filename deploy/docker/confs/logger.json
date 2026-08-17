@@ -40,7 +40,7 @@
             "class": "code.logger.AsyncBufferedElasticSearchHandler",
             "formatter": "json",
             "url": "http://elasticsearch:9200",
-	    "index": "fega-app",
+	    "index": "lega-app",
 	    "retry_after": 10
 	}
     },
