@@ -24,20 +24,22 @@
   ],
   "permissions": [
     { "user": "admin", "vhost": "/", "configure": ".*", "write": ".*", "read": ".*" },
-    { "user": "guest", "vhost": "/", "configure": "", "write": ".*", "read": "" },
-    { "user": "fs", "vhost": "/", "configure": "^fs$", "write": "^fs$", "read": "^fs$" }
+    { "user": "guest", "vhost": "/", "configure": "", "write": "^(amq\\.topic|fs)$", "read": "" },
+    { "user": "fs", "vhost": "/", "configure": "", "write": "", "read": "^fs$" }
   ],
   "parameters": [],
   "policies": [],
   "queues": [
-    {"name": "fs", "vhost": "/", "durable": true, "auto_delete": false, "arguments":{}},
-    {"name": "all", "vhost": "/", "durable": true, "auto_delete": false, "arguments":{}}
+    {"name": "fs", "vhost": "/", "durable": true, "auto_delete": false, "arguments":{}}
   ],
-  "exchanges": [
-    {"name":"lega", "vhost":"/", "type":"topic", "durable":true, "auto_delete":false, "internal":false, "arguments":{}}
-  ], 
+  "exchanges": [], 
   "bindings": [
-    { "source":"lega", "vhost": "/", "destination":"fs", "destination_type":"queue", "routing_key":"files.*", "arguments":{}},
-    { "source":"lega", "vhost": "/", "destination":"all", "destination_type":"queue", "routing_key":"#", "arguments":{}}
+      { "vhost": "/",
+	"source":"amq.topic", 
+	"routing_key":"files.*",
+	"destination_type":"queue",
+	"destination":"fs",
+	"arguments":{}
+      }
   ]
 }

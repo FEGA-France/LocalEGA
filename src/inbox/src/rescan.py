@@ -33,10 +33,6 @@ async def main(username):
     directory = os.path.abspath(os.path.join(INBOX, username))
     assert os.path.isdir(directory), "Not a directory"
 
-    # Move into it, so that '.' refers to it,
-    # and we can just replace './xxxx' with '/xxxx'
-    os.chdir(directory)
-
     # We connect to the local broker
     connection = await aiormq.connect('amqp://guest:guest@localhost:5672/%2F')
     channel = await connection.channel(publisher_confirms=True)
@@ -46,22 +42,24 @@ async def main(username):
                                               content_type='application/json')
 
     async def publish(body, correlation_id=None):
-        message = json.dumps(body, indent=4).encode()
+        m = json.dumps(body, indent=4).encode()
         if correlation_id:
             properties.correlation_id = correlation_id
-        return await channel.basic_publish(message,
-                                           exchange='lega',
+        return await channel.basic_publish(m,
+                                           exchange='amq.topic',
                                            routing_key='files.inbox',
                                            properties=properties)
 
     # First send a reset
+    print('-'*10,'Erasing all inbox entries from', username, file=sys.stderr)
     await publish({ 'operation': 'remove',
                     'username': username,
                     'filepath': '/' })
     
     print('-'*10,'Scanning', directory, file=sys.stderr)
 
-    for entry in scandir('.'): # already in "directory"
+    dlen = len(directory)
+    for entry in scandir(directory): # already in "directory"
         md = hashlib.sha256()
         with open(entry.path, 'rb') as f:
             b = bytearray(BUFSIZE)
@@ -71,19 +69,20 @@ async def main(username):
                     break
                 md.update(b[:n])
         # send
-        filepath = entry.path.lstrip('.')
+        filepath = entry.path[dlen:]
         sha256 = md.hexdigest()
         s = entry.stat() # might be a syscall
         correlation_id = str(uuid.uuid4())
         print(sha256, correlation_id, filepath)
-        await publish({ 'operation': 'upload',
-                        'username': username,
-                        'filepath': filepath,
-                        'encrypted_checksums': [ {'type': 'sha256',
-                                                  'value': sha256}],
-                        'filesize': s.st_size,
-                        'file_last_modified': int(s.st_mtime) # in seconds
-                       }, correlation_id=correlation_id)
+        message = {
+            'operation': 'upload',
+            'username': username,
+            'filepath': filepath,
+            'encrypted_checksums': [ {'type': 'sha256', 'value': sha256}],
+            'filesize': s.st_size,
+            'file_last_modified': int(s.st_mtime), # in seconds
+        }
+        await publish(message, correlation_id=correlation_id)
         
 
     print('-'*10, 'Scan terminated', file=sys.stderr)

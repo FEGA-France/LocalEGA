@@ -28,7 +28,7 @@ static char hostname[256];
 static const char* amqp_server_exception_string(amqp_rpc_reply_t r);
 static const char* amqp_rpc_reply_string(amqp_rpc_reply_t r);
 
-static amqp_bytes_t exchange = { .bytes = (void*)"lega", .len = sizeof("lega") - 1};
+static amqp_bytes_t exchange = { .bytes = (void*)"amq.topic", .len = sizeof("amq.topic") - 1};
 static amqp_bytes_t routing_key = { .bytes = (void*)"files.inbox", .len = sizeof("files.inbox") - 1};
 static amqp_table_entry_t client_entries[3];
 static amqp_table_t client_properties = { .num_entries = 3,

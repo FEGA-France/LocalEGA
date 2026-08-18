@@ -12,6 +12,9 @@ RUN apt-get update && \
 # gosu working?
 RUN gosu nobody true
 
+# For Python rescan.py
+RUN pip install aiormq
+
 ARG LEGA_UID=1000
 ARG LEGA_GID=1000
 
@@ -77,9 +80,6 @@ RUN  make && \
      make install-nosysconf
 
 COPY conf/entrypoint.sh /usr/local/bin/entrypoint.sh
-
-# Python rescan.py
-RUN pip install -U pip aiormq
 
 # for test
 RUN mkdir /etc/ega && \
