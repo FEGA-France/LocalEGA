@@ -53,7 +53,7 @@ async def main(username):
     # First send a reset
     print('-'*10,'Erasing all inbox entries from', username, file=sys.stderr)
     await publish({ 'operation': 'remove',
-                    'username': username,
+                    'user': username,
                     'filepath': '/' })
     
     print('-'*10,'Scanning', directory, file=sys.stderr)
@@ -76,7 +76,7 @@ async def main(username):
         print(sha256, correlation_id, filepath)
         message = {
             'operation': 'upload',
-            'username': username,
+            'user': username,
             'filepath': filepath,
             'encrypted_checksums': [ {'type': 'sha256', 'value': sha256}],
             'filesize': s.st_size,
