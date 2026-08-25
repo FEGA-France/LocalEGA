@@ -300,6 +300,7 @@ async def execute(config, message): # 128 segments = 8 MB
             os.unlink(staging_path)
         except OSError:
             pass
+        raise
 
 
 if __name__ == "__main__":

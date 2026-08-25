@@ -454,6 +454,10 @@ class DBConnection():
     @forward
     async def do_error(self, cur, correlation_id, data):
         cur.execute('UPDATE jobs SET error = ? WHERE id = ?', (data['reason'], int(data['internal']['job_id'])))
+        del data['internal']
+        data['type'] = 'error' # not needed, but cleaner for Central EGA
+        yield (correlation_id, 'files.error', data)
+
 
 
     async def publish_messages(self):
