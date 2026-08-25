@@ -107,6 +107,7 @@ END
 $BODY$;
 
 
+
 CREATE OR REPLACE FUNCTION public.process_permission_message(_json_message jsonb)
     RETURNS bigint
     LANGUAGE 'plpgsql'
@@ -115,88 +116,112 @@ CREATE OR REPLACE FUNCTION public.process_permission_message(_json_message jsonb
 AS $BODY$
 DECLARE
 	_stable_id text;
-	_user jsonb;
+	_users jsonb;
 	_username text;
-	_user_id bigint;
+	_count bigint;
 BEGIN
 	_stable_id = _json_message->>'dataset_id';
 	IF _stable_id IS NULL THEN
 		RAISE EXCEPTION 'dataset id is required';
 	END IF;
 
-	_user = _json_message->'user';
-	IF _user IS NULL THEN
-		RAISE EXCEPTION 'user is required';
+	_users = _json_message->'users';
+	IF _users IS NULL THEN
+		RAISE EXCEPTION 'users are required';
 	END IF;
 
-	_username = _user->>'username';
-
-	RAISE NOTICE '_username= %', _username;
+	-- We do not use ON CONFLICT DO UPDATE here to not increment the sequence
+	-- every time the user already exists (we will receive many permissions for the same user)
 
 	-----------------
 	-- Upsert user --
 	-----------------
-	-- We not use ON CONFLICT DO UPDATE here to not increment the sequence
-	-- every time the user already exists (we will receive many permissions for the same user)
+	WITH selected AS (
+		SELECT d.value->>'username'      AS username,
+	               d.value->>'full_name'     AS full_name,
+	               d.value->>'email'         AS email,
+	               d.value->>'institution'   AS institution,
+	       	       d.value->>'country'       AS country,
+		       d.value->>'password_hash' AS pwdh,
+		       d.value->'keys'         	 AS keys
+		FROM jsonb_array_elements(_json_message->'users') AS d(value)
+	), updated_users AS (
+	     UPDATE public.user_table t
+	        SET full_name=s.full_name,
+		    email=s.email,
+		    institution=s.institution,
+		    country=s.country
+	     FROM selected s
+	     WHERE t.username = s.username
+	     RETURNING t.id, t.username
+	), inserted_users AS (
+	     INSERT INTO public.user_table AS t(username, full_name, email, institution, country)
+	     SELECT s.username,
+	       	    s.full_name,
+	       	    s.email,
+	       	    s.institution,
+	       	    s.country
+	     FROM selected s
+	     LEFT JOIN updated_users u ON u.username = s.username
+	     WHERE u.username IS NULL
+	     RETURNING t.id, t.username
+        ), users AS ( -- combine updated/inserted users
+	     SELECT id, username FROM updated_users
+	     UNION
+	     SELECT id, username FROM inserted_users
+        ), passwords AS (
+	     ---------------------
+	     -- Upsert password --
+	     ---------------------
+	     INSERT INTO private.user_password_table (user_id, password_hash)
+	     SELECT u.id, s.pwdh
+	     FROM selected s
+	     JOIN users u on s.username = u.username
+	     ON CONFLICT ON CONSTRAINT user_password_table_pkey
+	     DO UPDATE
+	     	SET password_hash=EXCLUDED.password_hash
+        ), deleted_keys AS (
+	     -- Delete existing keys
+	     DELETE FROM public.user_key_table
+	     WHERE user_id IN (SELECT id FROM users)
+        ), inserted_keys AS (
+	     -- Insert keys
+	     INSERT INTO public.user_key_table (user_id, type, key)
+	     SELECT u.id, (k->>'type')::public.key_type, k->>'key'
+	     FROM selected s
+	     JOIN users u on s.username = u.username
+	     JOIN jsonb_array_elements(s.keys) AS k ON true
+	), updated_permissions AS (
+	     UPDATE private.dataset_permission_table AS t
+	        SET expires_at=(_json_message->>'expires_at')::timestamp with time zone,
+	            edited_at=(_json_message->>'edited_at')::timestamp with time zone
+	     WHERE dataset_stable_id=_stable_id AND user_id IN (SELECT DISTINCT id FROM users)
+	     RETURNING t.id, t.user_id
+	), inserted_permissions AS (
+	     INSERT INTO private.dataset_permission_table AS t(dataset_stable_id, user_id, expires_at, created_at, edited_at)
+	     SELECT _stable_id, u.id,
+	            (_json_message->>'expires_at')::timestamp with time zone,
+	       	    (_json_message->>'created_at')::timestamp with time zone,
+	       	    (_json_message->>'edited_at')::timestamp with time zone
+             -- FROM users u
+	     -- WHERE u.id NOT IN (SELECT DISTINCT user_id FROM updated_permissions)
+	     FROM users u
+	     LEFT JOIN updated_permissions p ON p.user_id = u.id
+	     WHERE p.user_id IS NOT NULL
+	     RETURNING t.id, t.user_id
+	), permissions AS (
+		SELECT id FROM updated_permissions
+		UNION
+		SELECT id FROM inserted_permissions
+	)
+	SELECT count(*)
+	INTO _count
+	FROM permissions;
 
-	UPDATE public.user_table t
-	SET full_name=_user->>'full_name',
-		email=_user->>'email',
-		institution=_user->>'institution',
-		country=_user->>'country'
-	WHERE t.username = _username
-	RETURNING t.id INTO _user_id;
+	RETURN _count;
 
-	IF _user_id IS NULL THEN
-		INSERT INTO public.user_table AS t (username, group_id, full_name, email, institution, country)
-		SELECT _username, 20000, _user->>'full_name', _user->>'email', _user->>'institution', _user->>'country'
-		RETURNING t.id INTO _user_id;
-	END IF;
-
-	---------------------
-	-- Upsert password --
-	---------------------
-	INSERT INTO private.user_password_table (user_id, password_hash)
-	SELECT _user_id,  _user->>'password_hash'
-	ON CONFLICT ON CONSTRAINT user_password_table_pkey
-	DO UPDATE
-	SET password_hash=EXCLUDED.password_hash
-	;
-
-	-----------------
-	-- Insert keys --
-	-----------------
-	-- 1st) Delete existing keys
-	DELETE FROM public.user_key_table
-	WHERE user_id=_user_id;
-
-	-- 2n) Insert keys
-	INSERT INTO public.user_key_table (user_id, key, type)
-	SELECT _user_id, _val->>'key', (_val->>'type')::public.key_type
-	FROM jsonb_array_elements(_user->'keys') _val;
-
-	-----------------------
-	-- Upsert permission --
-	-----------------------
-	UPDATE private.dataset_permission_table
-	SET expires_at=(_json_message->>'expires_at')::timestamp with time zone,
-		edited_at=(_json_message->>'edited_at')::timestamp with time zone
-	WHERE dataset_stable_id=_stable_id AND user_id=_user_id;
-
-	IF NOT FOUND THEN
-		INSERT INTO private.dataset_permission_table (dataset_stable_id, user_id, expires_at, created_at, edited_at)
-		SELECT _stable_id,
-		_user_id,
-		(_json_message->>'expires_at')::timestamp with time zone,
-		(_json_message->>'created_at')::timestamp with time zone,
-		(_json_message->>'edited_at')::timestamp with time zone;
-	END IF;
-
-	RETURN 1;
 END
 $BODY$;
-
-
 
 CREATE OR REPLACE FUNCTION public.process_deleted_permission_message(_json_message jsonb)
     RETURNS bigint
@@ -204,15 +229,15 @@ CREATE OR REPLACE FUNCTION public.process_deleted_permission_message(_json_messa
 AS $BODY$
 DECLARE
 	_stable_id text;
-	_user text;
+	_username text;
 BEGIN
 	_stable_id = _json_message->>'dataset_id';
 	IF _stable_id IS NULL THEN
 		RAISE EXCEPTION 'dataset id is required';
 	END IF;
 
-	_user = _json_message->>'user';
-	IF _user IS NULL THEN
+	SELECT trim(_json_message->>'user') INTO _username;
+	IF _username IS NULL OR _username = '' THEN
 		RAISE EXCEPTION 'user is required';
 	END IF;
 
@@ -221,7 +246,7 @@ BEGIN
 	-----------------------
 	DELETE FROM private.dataset_permission_table dpt
 	USING public.user_table ut
-	WHERE dpt.user_id=ut.id AND ut.username=_user AND dpt.dataset_stable_id=_stable_id;
+	WHERE dpt.user_id=ut.id AND ut.username=_username AND dpt.dataset_stable_id=_stable_id;
 
 	RETURN 1;
 END
