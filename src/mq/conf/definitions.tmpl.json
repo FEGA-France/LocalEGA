@@ -46,6 +46,24 @@
             "value": {
                 "ack-mode": "on-confirm",
                 "dest-add-forward-headers": false,
+                "dest-exchange": "lega",
+                "dest-exchange-key": "from_cega",
+                "dest-protocol": "amqp091",
+                "dest-uri": "amqp://",
+                "reconnect-delay": 5,
+                "src-delete-after": "never",
+                "src-protocol": "amqp091",
+                "src-queue": "from_cega",
+                "src-uri": "amqp://"
+            },
+            "vhost": "/",
+            "component": "shovel",
+            "name": "from_cega"
+        },
+        {
+            "value": {
+                "ack-mode": "on-confirm",
+                "dest-add-forward-headers": false,
                 "dest-exchange": "amq.topic",
                 "dest-protocol": "amqp091",
                 "dest-uri": "__CEGA_CONNECTION__",
