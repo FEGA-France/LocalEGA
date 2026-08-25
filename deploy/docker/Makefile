@@ -71,7 +71,17 @@ $(DB_DATA_VOLUME):
 rm-db:
 	-docker volume rm $(DB_DATA_VOLUME)
 
-db: down-db rm-db init-vault up-db wait-db setup-db
+logs-db:
+	-docker compose logs -f vault-db
+
+destroy-db: down-db rm-db
+post-db: up-db wait-db setup-db
+
+# Enforce order
+db:
+	@$(MAKE) --no-print-directory destroy-db
+	@$(MAKE) --no-print-directory init-vault
+	@$(MAKE) --no-print-directory post-db
 
 
 #############################
@@ -90,7 +100,6 @@ down:
 	@docker-compose down -v
 
 clean:
-	-echo -n '' > confs/ingestion.db
 	-rm -rf data
 
 
