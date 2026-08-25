@@ -8,7 +8,7 @@ CREATE TABLE public.user_table
 --    stable_id          text,
     username           text NOT NULL UNIQUE,
     gecos              text,
-    group_id           bigint NOT NULL, -- main group
+    group_id           bigint NOT NULL DEFAULT 20000, -- main group
     is_enabled          boolean NOT NULL DEFAULT TRUE,
 
     -- info about the person
