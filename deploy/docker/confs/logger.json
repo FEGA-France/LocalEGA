@@ -9,12 +9,12 @@
     "loggers": {
         "__main__": {
             "level": "DEBUG",
-            "handlers": [ "console", "es" ],
+            "handlers": [ "console" ],
             "propagate": true
         },
         "code": {
             "level": "DEBUG",
-            "handlers": [ "console", "es" ],
+            "handlers": [ "console" ],
             "propagate": true
         },
         "pamqp": {
@@ -35,24 +35,12 @@
             "class": "logging.StreamHandler",
             "formatter": "simple",
             "stream": "ext://sys.stderr"
-        },
-        "es": {
-            "class": "code.logger.AsyncBufferedElasticSearchHandler",
-            "formatter": "json",
-            "url": "http://elasticsearch:9200",
-	    "index": "lega-app",
-	    "retry_after": 10
-	}
+        }
     },
     "formatters": {
         "simple": {
             "format": "[{pid}][{levelname:^6}][{correlation_id:>20}] {message}",
             "style": "{"
-        },
-	"json": {
-	    "class": "code.logger.JSONFormatter",
-	    "format": "appname,pid,hostname,username,asctime,levelname,name,module,funcName,lineno,message,correlation_id",
-	    "datefmt": "%Y-%m-%d %H:%M:%S"
-	}
+        }
     }
 }

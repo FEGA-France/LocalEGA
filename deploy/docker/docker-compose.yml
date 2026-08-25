@@ -7,8 +7,6 @@ networks:
 
 volumes:
   mq:
-  cega-mq:
-  es_data:
   inbox:
   staging:
   vault:
@@ -55,6 +53,7 @@ services:
     hostname: mq
     ports:
       - 15672:15672
+      - 5672:5672
     image: lega/mq
     container_name: lega-mq
     networks:
@@ -77,15 +76,12 @@ services:
       mq:
         condition: service_healthy
         restart: true
-      elasticsearch:
-        condition: service_healthy
     hostname: dispatcher
     image: lega/dispatcher:latest
     container_name: lega-dispatcher
     volumes:
       - ./confs/dispatcher.ini:/etc/ega/lega.ini:ro
       - ./confs/logger.json:/etc/ega/logger.json:ro
-      - ./confs/ingestion.db:/etc/ega/ingestion.db
     networks:
       - internal
     command: [ "/etc/ega/lega.ini" ]
@@ -95,8 +91,6 @@ services:
       mq:
         condition: service_healthy
         restart: true
-      elasticsearch:
-        condition: service_healthy
     hostname: ingester-1
     image: lega/ingester:latest
     container_name: lega-ingester-1
@@ -116,8 +110,6 @@ services:
       mq:
         condition: service_healthy
         restart: true
-      elasticsearch:
-        condition: service_healthy
     hostname: ingester-2
     image: lega/ingester:latest
     container_name: lega-ingester-2
@@ -137,8 +129,6 @@ services:
       mq:
         condition: service_healthy
         restart: true
-      elasticsearch:
-        condition: service_healthy
     hostname: ingester-3
     image: lega/ingester:latest
     container_name: lega-ingester-3
@@ -158,8 +148,6 @@ services:
       mq:
         condition: service_healthy
         restart: true
-      elasticsearch:
-        condition: service_healthy
     hostname: ingester-4
     image: lega/ingester:latest
     container_name: lega-ingester-4
@@ -179,8 +167,6 @@ services:
       mq:
         condition: service_healthy
         restart: true
-      elasticsearch:
-        condition: service_healthy
     hostname: archiver-1
     image: lega/archiver:latest
     container_name: lega-archiver-1
@@ -200,8 +186,6 @@ services:
       mq:
         condition: service_healthy
         restart: true
-      elasticsearch:
-        condition: service_healthy
     hostname: archiver-2
     image: lega/archiver:latest
     container_name: lega-archiver-2
@@ -221,8 +205,6 @@ services:
       mq:
         condition: service_healthy
         restart: true
-      elasticsearch:
-        condition: service_healthy
     hostname: archiver-3
     image: lega/archiver:latest
     container_name: lega-archiver-3
@@ -242,8 +224,6 @@ services:
       mq:
         condition: service_healthy
         restart: true
-      elasticsearch:
-        condition: service_healthy
     hostname: archiver-4
     image: lega/archiver:latest
     container_name: lega-archiver-4
@@ -285,56 +265,3 @@ services:
       start_period: 30s
       timeout: 10s
 
-  ################################################################
-  ## Monitoring / Collecting logs
-  ################################################################
-
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
-    container_name: lega-elasticsearch
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - ES_PATH_CONF=/usr/share/elasticsearch/config
-    networks:
-      - internal
-      # - vault # so that vault-db can contact it without routing
-    volumes:
-      - es_data:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9200"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.12.0
-    container_name: lega-kibana
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-    ports:
-      - "5601:5601"
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-    networks:
-      - internal
-
-  vector:
-    image: timberio/vector:0.55.0-debian
-    container_name: lega-vault-db-logger
-    depends_on:
-      vault-db:
-        condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
-    networks:
-      - internal
-    environment:
-      - EGA_VAULT_DB_LOGS=/ega/vault-db/logs
-    volumes:
-      - ./confs/vector.toml:/etc/ega/vector.toml
-      - ./data/vault-db/logs:/ega/vault-db/logs
-    entrypoint: ["/usr/bin/vector"]
-    command: ["--config", "/etc/ega/vector.toml"]
