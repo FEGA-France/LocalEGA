@@ -7,6 +7,7 @@ import json
 import uuid
 import hashlib
 from resource import getpagesize
+import pwd
 
 import aiormq
 
@@ -50,11 +51,13 @@ async def main(username):
                                            routing_key='files.inbox',
                                            properties=properties)
 
+    _username = pwd.getpwuid(os.getuid()).pw_name
+
     # First send a reset
     print('-'*10,'Erasing all inbox entries from', username, file=sys.stderr)
     await publish({ 'operation': 'remove',
-                    'user': username,
-                    'filepath': '/' })
+                    'user': _username,
+                    'filepath': f'/upload/{username}/' })
     
     print('-'*10,'Scanning', directory, file=sys.stderr)
 
@@ -76,8 +79,8 @@ async def main(username):
         print(sha256, correlation_id, filepath)
         message = {
             'operation': 'upload',
-            'user': username,
-            'filepath': filepath,
+            'user': _username,
+            'filepath': f'/upload/{username}' + filepath,
             'encrypted_checksums': [ {'type': 'sha256', 'value': sha256}],
             'filesize': s.st_size,
             'file_last_modified': int(s.st_mtime), # in seconds
