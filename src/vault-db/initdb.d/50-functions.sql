@@ -133,17 +133,19 @@ BEGIN
 	-- We do not use ON CONFLICT DO UPDATE here to not increment the sequence
 	-- every time the user already exists (we will receive many permissions for the same user)
 
-	-----------------
-	-- Upsert user --
-	-----------------
-	WITH selected AS (
+ 	WITH selected AS (
 		SELECT d.value->>'username'      AS username,
 	               d.value->>'full_name'     AS full_name,
 	               d.value->>'email'         AS email,
 	               d.value->>'institution'   AS institution,
 	       	       d.value->>'country'       AS country,
 		       d.value->>'password_hash' AS pwdh,
-		       d.value->'keys'         	 AS keys
+		       d.value->'keys'         	 AS keys,
+		       
+	               (_json_message->>'expires_at')::timestamp with time zone AS expires_at,
+	       	       (_json_message->>'created_at')::timestamp with time zone AS created_at,
+	       	       (_json_message->>'edited_at')::timestamp with time zone  AS edited_at
+
 		FROM jsonb_array_elements(_json_message->'users') AS d(value)
 	), updated_users AS (
 	     UPDATE public.user_table t
@@ -166,9 +168,11 @@ BEGIN
 	     WHERE u.username IS NULL
 	     RETURNING t.id, t.username
         ), users AS ( -- combine updated/inserted users
-	     SELECT id, username FROM updated_users
+	     SELECT u.id, u.username, s.expires_at, s.created_at, s.edited_at
+	     FROM updated_users u JOIN selected s ON s.username = u.username
 	     UNION
-	     SELECT id, username FROM inserted_users
+	     SELECT u.id, u.username, s.expires_at, s.created_at, s.edited_at
+	     FROM inserted_users u JOIN selected s ON s.username = u.username
         ), passwords AS (
 	     ---------------------
 	     -- Upsert password --
@@ -193,21 +197,17 @@ BEGIN
 	     JOIN jsonb_array_elements(s.keys) AS k ON true
 	), updated_permissions AS (
 	     UPDATE private.dataset_permission_table AS t
-	        SET expires_at=(_json_message->>'expires_at')::timestamp with time zone,
-	            edited_at=(_json_message->>'edited_at')::timestamp with time zone
-	     WHERE dataset_stable_id=_stable_id AND user_id IN (SELECT DISTINCT id FROM users)
+	        SET expires_at=u.expires_at,
+	            edited_at=u.edited_at
+	     FROM users u	    
+	     WHERE t.dataset_stable_id=_stable_id AND t.user_id = u.id
 	     RETURNING t.id, t.user_id
 	), inserted_permissions AS (
 	     INSERT INTO private.dataset_permission_table AS t(dataset_stable_id, user_id, expires_at, created_at, edited_at)
-	     SELECT _stable_id, u.id,
-	            (_json_message->>'expires_at')::timestamp with time zone,
-	       	    (_json_message->>'created_at')::timestamp with time zone,
-	       	    (_json_message->>'edited_at')::timestamp with time zone
-             -- FROM users u
-	     -- WHERE u.id NOT IN (SELECT DISTINCT user_id FROM updated_permissions)
+	     SELECT _stable_id, u.id, u.expires_at, u.created_at, u.edited_at
 	     FROM users u
 	     LEFT JOIN updated_permissions p ON p.user_id = u.id
-	     WHERE p.user_id IS NOT NULL
+	     WHERE p.user_id IS NULL
 	     RETURNING t.id, t.user_id
 	), permissions AS (
 		SELECT id FROM updated_permissions
@@ -217,6 +217,8 @@ BEGIN
 	SELECT count(*)
 	INTO _count
 	FROM permissions;
+
+	-- RAISE NOTICE 'count: %', _count;
 
 	RETURN _count;
 
