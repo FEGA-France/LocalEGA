@@ -78,10 +78,12 @@ destroy-db: down-db rm-db
 post-db: up-db wait-db setup-db
 
 # Enforce order
+# stop it at the end so that, on next "up", the DB/MQ-consumer starts
 db:
 	@$(MAKE) --no-print-directory destroy-db
 	@$(MAKE) --no-print-directory init-vault
 	@$(MAKE) --no-print-directory post-db
+	@$(MAKE) --no-print-directory down-db
 
 
 #############################
@@ -89,7 +91,7 @@ db:
 #############################
 
 logs:
-	@docker-compose logs -f dispatcher {ingester,archiver}-{1..4} vector
+	@docker-compose logs -f dispatcher {ingester,archiver}-{1..4}
 logs-all:
 	@docker-compose logs -f
 ps:
