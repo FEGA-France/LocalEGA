@@ -240,9 +240,10 @@ services:
 
 
   vault-db:
-    # depends_on:
-    #   mq:
-    #     condition: service_healthy
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
     hostname: vault
     image: lega/vault-db:latest
     container_name: lega-vault-db
