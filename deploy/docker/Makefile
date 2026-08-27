@@ -5,6 +5,8 @@ all: images db
 
 DB_DATA_VOLUME=lega-vault-db
 
+DC=docker compose
+
 #############################
 ## Build docker images
 #############################
@@ -21,10 +23,13 @@ image-archiver:
 	$(MAKE) -C ../../src/ingestion/archiver latest ARGS=$(ARGS)
 image-mq:
 	$(MAKE) -C ../../src/mq latest ARGS=$(ARGS)
+image-tre:
+	$(MAKE) -C ../../src/distribution/fake-tre latest ARGS=$(ARGS)
 
 
 images: image-dispatcher image-ingester image-archiver
 images: image-inbox image-vault-db image-mq
+images: image-tre
 
 
 
@@ -38,6 +43,8 @@ images: image-inbox image-vault-db image-mq
 confs/pg_su_password:
 	@echo -n 'super-secret' > $@
 	@chmod 600 $@
+
+.PHONY: init-vault up-db down-db setup-db wait-db psql
 
 init-vault: confs/pg_su_password $(DB_DATA_VOLUME)
 	@$(MAKE) -C ../../src/vault-db init \
@@ -53,12 +60,11 @@ psql:
 	@psql
 
 
-.PHONY: up-db down-db setup-db wait-db
 up-db:
-	docker-compose up -d vault-db
+	$(DC) up -d --no-deps vault-db
 down-db:
-	docker-compose stop vault-db
-	yes | docker-compose rm vault-db
+	$(DC) stop vault-db
+	yes | $(DC) rm vault-db
 setup-db:
 	psql < confs/vault-db.sql
 
@@ -72,7 +78,7 @@ rm-db:
 	-docker volume rm $(DB_DATA_VOLUME)
 
 logs-db:
-	-docker compose logs -f vault-db
+	-$(DC) logs -f vault-db
 
 destroy-db: down-db rm-db
 post-db: up-db wait-db setup-db
@@ -80,9 +86,12 @@ post-db: up-db wait-db setup-db
 # Enforce order
 # stop it at the end so that, on next "up", the DB/MQ-consumer starts
 db:
-	@$(MAKE) --no-print-directory destroy-db
+	@$(MAKE) --no-print-directory down-db
+	@$(MAKE) --no-print-directory rm-db
 	@$(MAKE) --no-print-directory init-vault
-	@$(MAKE) --no-print-directory post-db
+	@$(MAKE) --no-print-directory up-db
+	@$(MAKE) --no-print-directory wait-db
+	@$(MAKE) --no-print-directory setup-db
 	@$(MAKE) --no-print-directory down-db
 
 
@@ -91,15 +100,17 @@ db:
 #############################
 
 logs:
-	@docker-compose logs -f dispatcher {ingester,archiver}-{1..4}
+	@$(DC) logs -f dispatcher {ingester,archiver}-{1..4}
 logs-all:
-	@docker-compose logs -f
+	@$(DC) logs -f
 ps:
-	@docker-compose ps
+	@$(DC) ps
+psa:
+	@$(DC) ps -a
 up:
-	@docker-compose up -d
+	@$(DC) up -d
 down:
-	@docker-compose down -v
+	@$(DC) down -v
 
 clean:
 	-rm -rf data
