@@ -109,9 +109,9 @@ The code is just ready to ship where needed.
 
 # Central EGA and France EGA
 
-The message broker `mq` tries to connect to an external broker, be it Central EGA itself, or France EGA.
-
 Get the instructions to run locally the France EGA (and its fake Central EGA service) from [https://github.com/FEGA-France/RelayEGA](https://github.com/FEGA-France/RelayEGA).
+
+The message broker `mq` tries to connect to the Central EGA broker itself, or to the France EGA one. It'll keep as long as it can, so expect to see connection errors in the `mq` logs until you boot the connected broker.
 
 The inbox does not connect to NSS from FranceEGA/CentralEGA, it has its own internal system-user.
 
