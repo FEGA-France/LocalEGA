@@ -14,10 +14,10 @@
 	{ "user": "admin", "vhost": "/", "configure": ".*", "write": ".*", "read": ".*" }
     ],
     "parameters": [
-	{"name": "from_cega", "vhost": "/", "component": "federation-upstream",
+	{"name": "from_fega", "vhost": "/", "component": "federation-upstream",
 	 "value": { "ack-mode": "on-confirm", "queue": "outgoing",
 		    "trust-user-id": false,
-		    "uri": "__CEGA_CONNECTION__" }
+		    "uri": "__FEGA_CONNECTION__" }
 	},
 	{"name": "from_inbox", "vhost": "/", "component": "federation-upstream",
 	 "value": { "ack-mode": "on-confirm", "queue": "fs",
@@ -47,18 +47,18 @@
                 "ack-mode": "on-confirm",
                 "dest-add-forward-headers": false,
                 "dest-exchange": "lega",
-                "dest-exchange-key": "from_cega",
+                "dest-exchange-key": "from_fega",
                 "dest-protocol": "amqp091",
                 "dest-uri": "amqp://",
                 "reconnect-delay": 5,
                 "src-delete-after": "never",
                 "src-protocol": "amqp091",
-                "src-queue": "from_cega",
+                "src-queue": "from_fega",
                 "src-uri": "amqp://"
             },
             "vhost": "/",
             "component": "shovel",
-            "name": "from_cega"
+            "name": "from_fega"
         },
         {
             "value": {
@@ -66,27 +66,25 @@
                 "dest-add-forward-headers": false,
                 "dest-exchange": "amq.topic",
                 "dest-protocol": "amqp091",
-                "dest-uri": "__CEGA_CONNECTION__",
+                "dest-uri": "__FEGA_CONNECTION__",
                 "reconnect-delay": 5,
                 "src-delete-after": "never",
                 "src-protocol": "amqp091",
-                "src-queue": "to_cega",
+                "src-queue": "to_fega",
                 "src-uri": "amqp://"
             },
             "vhost": "/",
             "component": "shovel",
-            "name": "to_cega"
+            "name": "to_fega"
         }
     ],
     "policies": [
-    	{ "vhost": "/", "name": "from_cega", "pattern": "^from_cega$", "apply-to": "queues", "priority": 0,
-      	  "definition": { "federation-upstream": "from_cega" }},
+    	{ "vhost": "/", "name": "from_fega", "pattern": "^from_fega$", "apply-to": "queues", "priority": 0,
+      	  "definition": { "federation-upstream": "from_fega" }},
 
     	{ "vhost": "/", "name": "from_inbox", "pattern": "^from_inbox$", "apply-to": "queues", "priority": 0,
-      	  "definition": { "federation-upstream": "from_inbox" }},
+      	  "definition": { "federation-upstream": "from_inbox" }}
 
-    	{ "vhost": "/", "name": "consumer-timeout", "pattern": "^upload.node.", "apply-to": "queues", "priority": 0,
-      	  "definition": { "consumer-timeout": 7200000 }}
     ],
 
     "queues": [
@@ -95,13 +93,13 @@
 	 "arguments":{"x-queue-type": "classic"}
 	},
 
-	{"name": "from_cega", "vhost": "/", "durable": true, "auto_delete": false,
+	{"name": "from_fega", "vhost": "/", "durable": true, "auto_delete": false,
 	 "arguments":{
 	     "x-dead-letter-exchange":"lega.dead",
 	     "x-queue-type": "classic"}
 	},
 
-	{"name": "to_cega",   "vhost": "/", "durable": true, "auto_delete": false,
+	{"name": "to_fega",   "vhost": "/", "durable": true, "auto_delete": false,
 	 "arguments":{
 	     "x-dead-letter-exchange":"lega.dead",
 	     "x-queue-type": "classic"}
@@ -166,19 +164,19 @@
     "bindings": [
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
-	  "destination":"to_cega",
+	  "destination":"to_fega",
 	  "routing_key":"files.inbox"},
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
-	  "destination":"to_cega",
+	  "destination":"to_fega",
 	  "routing_key":"files.error"},
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
-	  "destination":"to_cega",
+	  "destination":"to_fega",
 	  "routing_key":"files.verified"},
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
-	  "destination":"to_cega",
+	  "destination":"to_fega",
 	  "routing_key":"files.completed"},
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
@@ -187,7 +185,7 @@
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
 	  "destination":"dispatch",
-	  "routing_key":"from_cega"},
+	  "routing_key":"from_fega"},
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
 	  "destination":"archive",

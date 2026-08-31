@@ -47,8 +47,8 @@ services:
         condition: service_healthy
         restart: false
     environment:
-      # - CEGA_CONNECTION=amqps://lega-node:lega-secret@france.ega-archive.org:5671/lega-node
-      - CEGA_CONNECTION=amqp://demo:secret@fega-mq:5672/demo
+      # - FEGA_CONNECTION=amqps://lega-node:lega-secret@france.ega-archive.org:5671/lega-node
+      - FEGA_CONNECTION=amqp://demo:secret@fega-mq:5672/demo
       - INBOX_CONNECTION=amqp://fs:secret@lega-inbox:5672/%2F
     hostname: mq
     ports:
