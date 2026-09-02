@@ -1,0 +1,24 @@
+
+dsn = postgresql://distribution:another-strong-password@localhost:5432/ega?application_name=EGADistFS
+
+# Lookup a name ($3) in a directory ($2 inode) for a given user ($1)
+lookup_query = SELECT * FROM fs.lookup($1::varchar, $2::int8, $3::varchar);
+#lookup_query = SELECT ino,ctime,mtime,nlink,size,is_dir FROM fs.lookup($1::varchar, $2::int8, $3::varchar);
+
+# Get the attr ($2 inode) for a given user ($1)
+getattr_query = SELECT * FROM fs.getattr($1::varchar, $2::int8);
+#getattr_query = SELECT ino,ctime,mtime,nlink,size,is_dir FROM fs.getattr($1::varchar, $2::int8);
+
+# Read directory for a given user (in $1, $2 parent inode, $3 offset inode, $4 limit)
+readdir_query = SELECT * FROM fs.readdir($1::varchar, $2::int8, NULL, NULL);
+#readdir_query = SELECT ino,display_name,ctime,mtime,nlink,size,is_dir FROM fs.readdir($1::varchar, $2::int8, NULL, NULL);
+
+# Get file information for user (in $1) using file_id (in $2)
+# Including header re-encryption
+file_info = SELECT filepath,header FROM fs.get_file_info($1::varchar, $2::int8);
+
+# Lookup the file system stats for that user $1 and a mountpoint $2 (as inode)
+statfs = SELECT size,files FROM fs.stats($1::varchar, $2::int8);
+
+# Lookup the file system stats for that user $1 and a mountpoint $2 (as inode)
+getxattr = SELECT * FROM fs.getxattr($1::varchar, $2::int8, $3::varchar);

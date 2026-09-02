@@ -1,0 +1,45 @@
+{
+  "users": [
+      {"name":"admin",
+       "password_hash":"9bXnV9hAIuzV8xFqtSVFTLPcX0G9F13EN9lXQAZj2dAkA9GR",
+       "hashing_algorithm":"rabbit_password_hashing_sha256",
+       "tags":["administrator"],
+       "limits":{}
+      },
+      {"name":"guest",
+       "password_hash":"oHEq9W6meLkwZO7BMVKRy9ZiHwOpeObhlx7/5wTc9nTLKDWc",
+       "hashing_algorithm":"rabbit_password_hashing_sha256",
+       "tags":[],
+       "limits":{}
+      },
+      {"name":"fs",
+       "password_hash":"Tzmm93y3A0KmLPOt0Njmh6dLG2LIk2tac259DW6Eby3OiavG",
+       "hashing_algorithm":"rabbit_password_hashing_sha256",
+       "tags":[],
+       "limits":{}
+      }
+  ],
+  "vhosts": [
+    { "name": "/" }
+  ],
+  "permissions": [
+    { "user": "admin", "vhost": "/", "configure": ".*", "write": ".*", "read": ".*" },
+    { "user": "guest", "vhost": "/", "configure": "", "write": "^(amq\\.topic|fs)$", "read": "" },
+    { "user": "fs", "vhost": "/", "configure": "", "write": "", "read": "^fs$" }
+  ],
+  "parameters": [],
+  "policies": [],
+  "queues": [
+    {"name": "fs", "vhost": "/", "durable": true, "auto_delete": false, "arguments":{}}
+  ],
+  "exchanges": [], 
+  "bindings": [
+      { "vhost": "/",
+	"source":"amq.topic", 
+	"routing_key":"files.*",
+	"destination_type":"queue",
+	"destination":"fs",
+	"arguments":{}
+      }
+  ]
+}

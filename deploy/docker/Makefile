@@ -1,128 +1,119 @@
 SHELL := /bin/bash
+ARGS = 
 
-LEGA_UID := $(shell id -u lega)
-LEGA_GID := $(shell id -g lega)
-# LEGA_UID := $(shell id -u)
-# LEGA_GID := $(shell id -g)
+all: images db
+
+DB_DATA_VOLUME=lega-vault-db
+
+DC=docker compose
 
 #############################
 ## Build docker images
 #############################
 
-define error-lega-gid-message
-Please specify the group id via the LEGA_GID variable.
-For example, by calling "make $@ LEGA_UID=$$(id -g lega)"
-endef
-
 image-inbox:
-ifeq ($(LEGA_GID),)
-	$(error $(error-lega-gid-message))
-endif
-	make -C ../../src/inbox latest LEGA_GID=$(LEGA_GID)
+	$(MAKE) -C ../../src/inbox latest ARGS=$(ARGS)
+image-vault-db:
+	$(MAKE) -C ../../src/vault-db latest ARGS=$(ARGS) PG_SU_PASSWORD=fake
+image-dispatcher:
+	$(MAKE) -C ../../src/ingestion/dispatcher latest ARGS=$(ARGS)
+image-ingester:
+	$(MAKE) -C ../../src/ingestion/ingester latest ARGS=$(ARGS)
+image-archiver:
+	$(MAKE) -C ../../src/ingestion/archiver latest ARGS=$(ARGS)
+image-mq:
+	$(MAKE) -C ../../src/mq latest ARGS=$(ARGS)
+image-tre:
+	$(MAKE) -C ../../src/distribution/fake-tre latest ARGS=$(ARGS)
 
-define error-lega-ugid-message
-Please specify the user and group ids via the LEGA_UID/LEGA_GID variable.
-For example, by calling "make $@ LEGA_UID=$$(id -u lega) LEGA_GID=$$(id -g lega)"
-endef
 
+images: image-dispatcher image-ingester image-archiver
+images: image-inbox image-vault-db image-mq
+images: image-tre
 
-image-handler:
-ifeq ($(LEGA_UID),)
-	$(error $(error-lega-ugid-message))
-endif
-ifeq ($(LEGA_GID),)
-	$(error $(error-lega-ugid-message))
-endif
-	make -C ../../src/handler latest LEGA_UID=$(LEGA_UID) LEGA_GID=$(LEGA_GID)
-
-image-vault:
-	make -C ../../src/vault latest
-
-images: image-inbox image-handler image-vault
 
 
 #############################
 ## Initialize the database
 #############################
-init-vault:
-ifeq ("$(wildcard pg_vault_su_password)","")
-	$(error 'Please specify the superuser password file "pg_vault_su_password"')
-endif
-	make -C ../../src/vault init DB_DATA=$(shell pwd)/data/vault-db PG_SU_PASSWORD=$(file < pg_vault_su_password)
+# confs/pg_su_password:
+# 	@echo $@ should be pre-generated
+# 	@exit 1
+
+confs/pg_su_password:
+	@echo -n 'super-secret' > $@
+	@chmod 600 $@
+
+.PHONY: init-vault up-db down-db setup-db wait-db psql
+
+init-vault: confs/pg_su_password $(DB_DATA_VOLUME)
+	@$(MAKE) -C ../../src/vault-db init \
+	PG_SU_PASSWORD=$(shell cat $<) DB_DATA=$(DB_DATA_VOLUME)
 
 # Connect to the database from the host machine
 export PGHOST=localhost
 export PGPORT=5432
-export PGUSER=postgres
-export PGPASSWORD=$(file < pg_vault_su_password)
 export PGDATABASE=ega
+export PGUSER=postgres
+export PGPASSWORD=$(shell cat confs/pg_su_password 2>/dev/null || echo -n fake)
 psql:
-	psql
+	@psql
+
+
+up-db:
+	$(DC) up -d --no-deps vault-db
+down-db:
+	$(DC) stop vault-db
+	yes | $(DC) rm vault-db
+setup-db:
+	psql < confs/vault-db.sql
+
+wait-db:
+	@sleep 2
+
+.PHONY: $(DB_DATA_VOLUME)
+$(DB_DATA_VOLUME):
+	@docker volume create $@
+rm-db:
+	-docker volume rm $(DB_DATA_VOLUME)
+
+logs-db:
+	-$(DC) logs -f vault-db
+
+destroy-db: down-db rm-db
+post-db: up-db wait-db setup-db
+
+# Enforce order
+# stop it at the end so that, on next "up", the DB/MQ-consumer starts
+db:
+	@$(MAKE) --no-print-directory down-db
+	@$(MAKE) --no-print-directory rm-db
+	@$(MAKE) --no-print-directory init-vault
+	@$(MAKE) --no-print-directory up-db
+	@$(MAKE) --no-print-directory wait-db
+	@$(MAKE) --no-print-directory setup-db
+	@$(MAKE) --no-print-directory down-db
 
 
 #############################
 ## Utility targets
 #############################
 
-down:
-	docker-compose down -v
 logs:
-	docker-compose logs -f
+	@$(DC) logs -f dispatcher {ingester,archiver}-{1..4}
+logs-all:
+	@$(DC) logs -f
 ps:
-	docker-compose ps
+	@$(DC) ps
+psa:
+	@$(DC) ps -a
+up:
+	@$(DC) up -d
+down:
+	@$(DC) down -v
 
 clean:
-	-rm -rf data/{vault,vault.bkp,staging,inbox}/*
-	-rm -rf data/vault-db
-	-rm -f data/example.txt.c4gh data/example.txt
-
-#############################
-## Distribution
-#############################
-
-# we need to sort to return the files in the desired order
-SQL_FILES=$(sort $(notdir $(wildcard ../../src/distribution/src/db/*.sql)))
-
-echo:
-	@echo $(SQL_FILES)
-
-load: $(SQL_FILES:%=load-%)
-
-export PGHOST=localhost
-export PGPORT=5432
-export PGUSER=postgres
-export PGPASSWORD=$(file < pg_vault_su_password)
-export PGDATABASE=ega
-
-load-%:
-	psql < ../../src/distribution/src/db/$*
-
-nss-users:
-	psql -c 'SELECT * FROM nss.make_users();'
-nss-passwords:
-	psql -c 'SELECT * FROM nss.make_passwords();'
-nss-groups:
-	psql -c 'SELECT * FROM nss.make_groups();'
-nss-keys:
-	psql -c 'SELECT nss.make_authorized_keys(r.db_uid) FROM public.requesters r;'
-nss: nss-users nss-passwords nss-groups nss-keys
+	-rm -rf data
 
 
-
-#############################
-## Upload example
-#############################
-
-data/example.txt.c4gh: data/example.txt
-	crypt4gh encrypt --recipient_pk service.key.pub < $< > $@
-
-data/example.txt:
-	dd if=/dev/urandom bs=1024 count=2 > $@
-
-example: data/example.txt.c4gh
-
-sftp:
-	sftp -P 2222 john@localhost
-
-permission:
-	curl http://localhost:8080/permission/jane/EGAD90000000123
+-include example.mk

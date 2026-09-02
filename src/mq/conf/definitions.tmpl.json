@@ -1,0 +1,268 @@
+{
+    "users": [
+	{"name": "admin",
+	 "password_hash": "__MQ_PASSWORD_HASH__",
+	 "hashing_algorithm": "rabbit_password_hashing_sha256",
+	 "tags": ["administrator","management"],
+	 "limits": {}
+	}
+    ],
+    "vhosts": [
+        {"name": "/", "default_queue_type": "classic"}
+    ],
+    "permissions": [
+	{ "user": "admin", "vhost": "/", "configure": ".*", "write": ".*", "read": ".*" }
+    ],
+    "parameters": [
+	{"name": "from_fega", "vhost": "/", "component": "federation-upstream",
+	 "value": { "ack-mode": "on-confirm", "queue": "outgoing",
+		    "trust-user-id": false,
+		    "uri": "__FEGA_CONNECTION__" }
+	},
+	{"name": "from_inbox", "vhost": "/", "component": "federation-upstream",
+	 "value": { "ack-mode": "on-confirm", "queue": "fs",
+		    "trust-user-id": false,
+		    "uri": "__INBOX_CONNECTION__" }
+	},
+        {
+            "value": {
+                "ack-mode": "on-confirm",
+                "dest-add-forward-headers": false,
+                "dest-exchange": "lega",
+                "dest-exchange-key": "files.inbox",
+                "dest-protocol": "amqp091",
+                "dest-uri": "amqp://",
+                "reconnect-delay": 5,
+                "src-delete-after": "never",
+                "src-protocol": "amqp091",
+                "src-queue": "from_inbox",
+                "src-uri": "amqp://"
+            },
+            "vhost": "/",
+            "component": "shovel",
+            "name": "from_inbox"
+        },
+        {
+            "value": {
+                "ack-mode": "on-confirm",
+                "dest-add-forward-headers": false,
+                "dest-exchange": "lega",
+                "dest-exchange-key": "from_fega",
+                "dest-protocol": "amqp091",
+                "dest-uri": "amqp://",
+                "reconnect-delay": 5,
+                "src-delete-after": "never",
+                "src-protocol": "amqp091",
+                "src-queue": "from_fega",
+                "src-uri": "amqp://"
+            },
+            "vhost": "/",
+            "component": "shovel",
+            "name": "from_fega"
+        },
+        {
+            "value": {
+                "ack-mode": "on-confirm",
+                "dest-add-forward-headers": false,
+                "dest-exchange": "amq.topic",
+                "dest-protocol": "amqp091",
+                "dest-uri": "__FEGA_CONNECTION__",
+                "reconnect-delay": 5,
+                "src-delete-after": "never",
+                "src-protocol": "amqp091",
+                "src-queue": "to_fega",
+                "src-uri": "amqp://"
+            },
+            "vhost": "/",
+            "component": "shovel",
+            "name": "to_fega"
+        }
+    ],
+    "policies": [
+    	{ "vhost": "/", "name": "from_fega", "pattern": "^from_fega$", "apply-to": "queues", "priority": 0,
+      	  "definition": { "federation-upstream": "from_fega" }},
+
+    	{ "vhost": "/", "name": "from_inbox", "pattern": "^from_inbox$", "apply-to": "queues", "priority": 0,
+      	  "definition": { "federation-upstream": "from_inbox" }}
+
+    ],
+
+    "queues": [
+
+	{"name": "from_inbox", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{"x-queue-type": "classic"}
+	},
+
+	{"name": "from_fega", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{
+	     "x-dead-letter-exchange":"lega.dead",
+	     "x-queue-type": "classic"}
+	},
+
+	{"name": "to_fega",   "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{
+	     "x-dead-letter-exchange":"lega.dead",
+	     "x-queue-type": "classic"}
+	},
+
+	{"name": "dispatch", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{
+	     "x-dead-letter-exchange":"lega.dead",
+	     "x-queue-type": "classic"}
+	},
+
+	{"name": "vault.db", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{
+	     "x-dead-letter-exchange":"lega.dead",
+	     "x-queue-type": "classic"}
+	},
+
+	{"name": "errors", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{ "x-queue-type": "classic" }},
+
+	{"name": "ingestion-1", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{
+	     "x-dead-letter-exchange":"lega.dead",
+	     "x-queue-type": "classic" }
+	},
+	{"name": "ingestion-2", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{
+	     "x-dead-letter-exchange":"lega.dead",
+	     "x-queue-type": "classic" }
+	},
+	{"name": "ingestion-3", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{
+	     "x-dead-letter-exchange":"lega.dead",
+	     "x-queue-type": "classic" }
+	},
+	{"name": "ingestion-4", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{
+	     "x-dead-letter-exchange":"lega.dead",
+	     "x-queue-type": "classic" }
+	},
+
+	{"name": "archive", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{
+	     "x-dead-letter-exchange":"lega.dead",
+	     "x-queue-type": "classic" }
+	},
+
+	{"name": "all.lega", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{ "x-queue-type": "classic"}
+	},
+	{"name": "lega.dead", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{ "x-queue-type": "classic"}
+	}
+
+    ],
+    "exchanges": [
+	{"name":"lega", "vhost":"/", "type":"topic", "durable":true, "auto_delete":false, "internal":false, "arguments":{}},
+	{"name":"lega.dead", "vhost":"/", "type":"topic", "durable":true, "auto_delete":false, "internal":false, "arguments":{}},
+	{"name":"lega.ingestion", "vhost":"/", "durable":true, "auto_delete":false, "internal":false,
+	 "type":"x-consistent-hash", "arguments":{"hash-property": "correlation_id"}}
+    ], 
+    "bindings": [
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"to_fega",
+	  "routing_key":"files.inbox"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"to_fega",
+	  "routing_key":"files.error"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"to_fega",
+	  "routing_key":"files.verified"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"to_fega",
+	  "routing_key":"files.completed"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"all.lega", 
+	  "routing_key":"#"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"dispatch",
+	  "routing_key":"from_fega"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"archive",
+	  "routing_key":"archive"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"archive",
+	  "routing_key":"clean"},
+
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"dispatch",
+	  "routing_key":"ingestion.cleanup"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"dispatch",
+	  "routing_key":"ingestion.completed"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"dispatch",
+	  "routing_key":"cancel.completed"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"dispatch",
+	  "routing_key":"archival.completed"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"dispatch",
+	  "routing_key":"clean.completed"},
+
+
+
+	{"source":"lega", "vhost":"/", "destination_type":"exchange", "arguments":{},
+	 "destination":"lega.ingestion",
+	 "routing_key":"ingest"},
+
+	{"source":"lega", "vhost":"/", "destination_type":"exchange", "arguments":{},
+	 "destination":"lega.ingestion",
+	 "routing_key":"cancel"},
+
+
+	{ "source":"lega.ingestion", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"ingestion-1",
+	  "routing_key":"1"},
+	{ "source":"lega.ingestion", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"ingestion-2",
+	  "routing_key":"1"},
+	{ "source":"lega.ingestion", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"ingestion-3",
+	  "routing_key":"1"},
+	{ "source":"lega.ingestion", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"ingestion-4",
+	  "routing_key":"1"},
+
+
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"vault.db",
+	  "routing_key":"relay.vault.db"},
+
+
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"dispatch",
+	  "routing_key":"error"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"errors",
+	  "routing_key":"error.system"},
+
+	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"errors",
+	  "routing_key":"files.error"},
+
+	{ "source":"lega.dead", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"lega.dead",
+	  "routing_key":"#"}
+
+    ]
+}

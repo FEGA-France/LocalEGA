@@ -1,0 +1,268 @@
+
+networks:
+  fega-external:
+    external: true
+  internal:
+  vault:
+
+volumes:
+  mq:
+  inbox:
+  staging:
+  vault:
+  vault.bkp:
+  lega-vault-db:
+    external: true
+
+services:
+  inbox:
+    hostname: lega-inbox
+    container_name: lega-inbox
+    networks:
+      - fega-external # public access, eg from fega-inbox/uploader
+      - internal
+    # build:
+    #   context: ../../src/inbox
+    #   args:
+    #     - LEGA_UID=502 #$(id -u)
+    #     - LEGA_GID=20 #$(id -g)
+    ports:
+      - 15676:15672
+    #   - 2222:22
+    image: lega/inbox:latest
+    volumes:
+      - inbox:/ega/inbox/upload
+    healthcheck:
+      test: ["CMD-SHELL", "gosu rabbitmq rabbitmq-diagnostics -q ping"]
+      # Because /root/.erlang.cookie might differ from /var/lib/rabbitmq/.erlang.cookie
+      # The healthcheck here runs as root
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  mq:
+    depends_on:
+      inbox:
+        condition: service_healthy
+        restart: false
+    environment:
+      # - FEGA_CONNECTION=amqps://lega-node:lega-secret@france.ega-archive.org:5671/lega-node
+      - FEGA_CONNECTION=amqp://demo:secret@fega-mq:5672/demo
+      - INBOX_CONNECTION=amqp://fs:secret@lega-inbox:5672/%2F
+    hostname: mq
+    ports:
+      - 15672:15672
+      - 5672:5672
+    image: lega/mq
+    container_name: lega-mq
+    networks:
+      - fega-external # so it sees fega-mq
+      - internal
+    volumes:
+      - mq:/var/lib/rabbitmq
+      # - ../../src/mq/conf/definitions.tmpl.json:/etc/rabbitmq/definitions.tmpl.json:ro
+    # entrypoint: ['/bin/sleep']
+    # command: '365d'
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  dispatcher:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+    hostname: dispatcher
+    image: lega/dispatcher:latest
+    container_name: lega-dispatcher
+    volumes:
+      - ./confs/dispatcher.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+    networks:
+      - internal
+    command: [ "/etc/ega/lega.ini" ]
+
+  ingester-1:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+    hostname: ingester-1
+    image: lega/ingester:latest
+    container_name: lega-ingester-1
+    networks:
+      - internal
+    command: ["/etc/ega/lega.ini", "ingestion-1"]
+    volumes:
+      - ./confs/ingester.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./confs/service.seckey:/etc/ega/service.seckey:ro
+      - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
+      - inbox:/ega/inbox/upload:ro
+      - staging:/ega/staging
+
+  ingester-2:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+    hostname: ingester-2
+    image: lega/ingester:latest
+    container_name: lega-ingester-2
+    networks:
+      - internal
+    command: ["/etc/ega/lega.ini", "ingestion-2"]
+    volumes:
+      - ./confs/ingester.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./confs/service.seckey:/etc/ega/service.seckey:ro
+      - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
+      - inbox:/ega/inbox/upload:ro
+      - staging:/ega/staging
+
+  ingester-3:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+    hostname: ingester-3
+    image: lega/ingester:latest
+    container_name: lega-ingester-3
+    networks:
+      - internal
+    command: ["/etc/ega/lega.ini", "ingestion-3"]
+    volumes:
+      - ./confs/ingester.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./confs/service.seckey:/etc/ega/service.seckey:ro
+      - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
+      - inbox:/ega/inbox/upload:ro
+      - staging:/ega/staging
+
+  ingester-4:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+    hostname: ingester-4
+    image: lega/ingester:latest
+    container_name: lega-ingester-4
+    networks:
+      - internal
+    command: ["/etc/ega/lega.ini", "ingestion-4"]
+    volumes:
+      - ./confs/ingester.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ./confs/service.seckey:/etc/ega/service.seckey:ro
+      - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
+      - inbox:/ega/inbox/upload:ro
+      - staging:/ega/staging
+
+  archiver-1:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+    hostname: archiver-1
+    image: lega/archiver:latest
+    container_name: lega-archiver-1
+    networks:
+      - vault
+      - internal # to make it contact mq without routing
+    command: ["/etc/ega/lega.ini", "archiver-1"]
+    volumes:
+      - ./confs/archiver.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - staging:/ega/staging
+      - vault.bkp:/ega/backup
+      - vault:/ega/vault
+
+  archiver-2:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+    hostname: archiver-2
+    image: lega/archiver:latest
+    container_name: lega-archiver-2
+    networks:
+      - vault
+      - internal # to make it contact mq without routing
+    command: ["/etc/ega/lega.ini", "archiver-2"]
+    volumes:
+      - ./confs/archiver.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - staging:/ega/staging
+      - vault.bkp:/ega/backup
+      - vault:/ega/vault
+
+  archiver-3:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+    hostname: archiver-3
+    image: lega/archiver:latest
+    container_name: lega-archiver-3
+    networks:
+      - vault
+      - internal # to make it contact mq without routing
+    command: ["/etc/ega/lega.ini", "archiver-3"]
+    volumes:
+      - ./confs/archiver.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - staging:/ega/staging
+      - vault.bkp:/ega/backup
+      - vault:/ega/vault
+
+  archiver-4:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+    hostname: archiver-4
+    image: lega/archiver:latest
+    container_name: lega-archiver-4
+    networks:
+      - vault
+      - internal # to make it contact mq without routing
+    command: ["/etc/ega/lega.ini", "archiver-4"]
+    volumes:
+      - ./confs/archiver.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - staging:/ega/staging
+      - vault.bkp:/ega/backup
+      - vault:/ega/vault
+
+
+  vault-db:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+    hostname: vault
+    image: lega/vault-db:latest
+    container_name: lega-vault-db
+    volumes:
+      - lega-vault-db:/ega/data
+      - ./confs/pg.conf:/etc/ega/pg.conf:ro
+      - ./confs/pg_hba.conf:/etc/ega/pg_hba.conf:ro
+    networks:
+      - vault
+      - internal # to make it contact mq without routing
+    user: postgres
+    ports:
+      - 5432:5432
+    entrypoint: ["postgres"]
+    command: ["-c", "config_file=/etc/ega/pg.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ega"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+

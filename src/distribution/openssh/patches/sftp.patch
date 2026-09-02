@@ -1,0 +1,87 @@
+diff -uN org/sftp-common.c src/sftp-common.c
+--- org/sftp-common.c	2023-10-23 15:07:59
++++ src/sftp-common.c	2023-10-23 15:09:43
+@@ -178,6 +178,13 @@
+ 		    (r = sshbuf_put_u32(b, a->mtime)) != 0)
+ 			return r;
+ 	}
++	if (a->flags & SSH2_FILEXFER_ATTR_EXTENDED) {
++	  /* Adding 1 extension */
++	  if ((r = sshbuf_put_u32(b, 1)) != 0 ||
++	      (r = sshbuf_put_cstring(b, "decrypted_filesize")) != 0 ||
++	      (r = sshbuf_put_cstring(b, a->decrypted_filesize)) != 0)
++		  return r;
++	}
+ 	return 0;
+ }
+ 
+diff -uN org/sftp-common.h src/sftp-common.h
+--- org/sftp-common.h	2023-10-23 15:07:59
++++ src/sftp-common.h	2023-10-23 15:09:43
+@@ -28,6 +28,8 @@
+ /* Maximum packet that we are willing to send/accept */
+ #define SFTP_MAX_MSG_LENGTH	(256 * 1024)
+ 
++#define EGA_DECRYPTED_FILE_LENGTH 32 /* Laaaaarge enough */
++
+ struct sshbuf;
+ typedef struct Attrib Attrib;
+ 
+@@ -40,6 +42,7 @@
+ 	u_int32_t	perm;
+ 	u_int32_t	atime;
+ 	u_int32_t	mtime;
++	char decrypted_filesize[EGA_DECRYPTED_FILE_LENGTH];
+ };
+ 
+ void	 attrib_clear(Attrib *);
+diff -uN org/sftp-server.c src/sftp-server.c
+--- org/sftp-server.c	2023-10-23 15:07:59
++++ src/sftp-server.c	2023-10-23 15:23:23
+@@ -44,6 +44,7 @@
+ #include <time.h>
+ #include <unistd.h>
+ #include <stdarg.h>
++#include <sys/xattr.h>
+ 
+ #include "atomicio.h"
+ #include "xmalloc.h"
+@@ -57,6 +58,7 @@
+ #include "sftp.h"
+ #include "sftp-common.h"
+ 
++
+ char *sftp_realpath(const char *, char *); /* sftp-realpath.c */
+ 
+ /* Maximum data read that we are willing to accept */
+@@ -913,6 +915,9 @@
+ 		status = errno_to_portable(errno);
+ 	} else {
+ 		stat_to_attrib(&st, &a);
++		/* Get the user.decrypted_filesize extended attribute */ 
++		if(getxattr(name, "user.decrypted_filesize", a.decrypted_filesize, EGA_DECRYPTED_FILE_LENGTH) > 0)
++		  a.flags |= SSH2_FILEXFER_ATTR_EXTENDED;
+ 		send_attrib(id, &a);
+ 		status = SSH2_FX_OK;
+ 	}
+@@ -951,6 +956,9 @@
+ 			status = errno_to_portable(errno);
+ 		} else {
+ 			stat_to_attrib(&st, &a);
++			/* Get the user.decrypted_filesize extended attribute */ 
++			if(fgetxattr(fd, "user.decrypted_filesize", a.decrypted_filesize, EGA_DECRYPTED_FILE_LENGTH) > 0)
++			  a.flags |= SSH2_FILEXFER_ATTR_EXTENDED;
+ 			send_attrib(id, &a);
+ 			status = SSH2_FX_OK;
+ 		}
+@@ -1160,6 +1168,10 @@
+ 			if (lstat(pathname, &st) == -1)
+ 				continue;
+ 			stat_to_attrib(&st, &(stats[count].attrib));
++			/* Get the user.decrypted_filesize extended attribute */ 
++			if(getxattr(pathname, "user.decrypted_filesize",
++				    stats[count].attrib.decrypted_filesize, EGA_DECRYPTED_FILE_LENGTH) > 0)
++			  stats[count].attrib.flags |= SSH2_FILEXFER_ATTR_EXTENDED;
+ 			stats[count].name = xstrdup(dp->d_name);
+ 			stats[count].long_name = ls_file(dp->d_name, &st,
+ 			    0, 0, NULL, NULL);

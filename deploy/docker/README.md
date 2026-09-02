@@ -1,149 +1,127 @@
 ⚠️ Please, note that this repository uses git submodules. Use flag `--recurse-submodules` when cloning it, and verify that they have been initialised.
 
-This document helps you prepare the (mininum) settings for your LocalEGA instance.
+This document helps you run your LocalEGA instance, locally.
 
 All files are encrypted using Crypt4GH.
-The master key should be stored securely.
 
 It requires:
 * a service key
 * a master key
-* a configuration file for the python handler: `lega.ini`
+* a configuration file for the python services: `<service>.ini`, including its logger `<service>-logger.json`
 * a configuration file for docker-compose: `docker-compose.yml`
 * 2 configurations file for postgres: `pg.conf` and `pg_hba.conf`
 
-We assume you have created a local user and a group named `lega`. If not, you can do it with
+# Sensitive data / configuration files
 
-    groupadd -r lega
-    useradd -M -g lega lega
+We provide in [`confs/`](confs) a list of dummy configuration files. This is fine for a test/local deployment.  
+Of course, update the settings (and file permissions) in production environment!
 
-# Sensitive data
+The included message broker uses an administrator account with `admin:secret` as `<username>:<password>`.
 
-Update the configuration files with the proper settings.
-> Hint: copy the supplied sample files and adjust the passwords, paths, etc., appropriately.  
+We provide 2 pre-generated dummy keys and already injected the settings in the configuration files.
 
-	cp docker-compose.yml.sample           docker-compose.yml
-	cp ../../src/vault/pg.conf.sample      pg.conf
-	cp ../../src/vault/pg_hba.conf.sample  pg_hba.conf
-	cp ../../src/handler/conf.ini.sample   lega.ini
-
-
-The included message broker uses an administrator account with
-`admin:secret` as `username:password`. This is up to you to update it
-in your production environment.
-
-Generate the service key with:
-
-	ssh-keygen -t ed25519 -f service.key -C "service_key@LocalEGA"
-	chown lega service.key
-	chown lega service.key.pub
-
-Note: You will get prompted for the passphrase. Save it and update
-`lega.ini` accordingly, with the proper filepath and the chosen
-passphrase. (it is _not_ recommended _not to use_ any passphrase).
-
-Repeat the same for the master key:
-
-	ssh-keygen -t ed25519 -f master.key -C "master_key@LocalEGA"
-	chown lega master.key
-	chown lega master.key.pub
-	
-# Mountpoints / File system
-
-Prepare the storage mountpoints for:
-* the inbox of the users
-* staging area
-* the vault location
-* the backup location
-
-```bash
-	# Create the directories (some with the setgid bit)
-	mkdir -p data/{inbox,staging,vault,vault.bkp}
-
-	# Change the ownership
-	chown lega:lega data/{inbox,staging,vault,vault.bkp}
-
-	# Change the access permissions
-	chmod 2750 data/inbox # with the setgid bit, the `lega` user can _read_ the inbox files of each user.
-	                      # Other users then the owner can't.
-	chmod 700 data/staging
-	chmod 750 data/vault  # lega group needs r,x in order to distribute files
-	chmod 700 data/vault.bkp
-```
-Adjust the paths in the `docker-compose.yml` file and the `lega.ini` handler configuration.
-
-# FEGA Affiliates
-
-If you are preparing a FEGA Affiliate (not a FEGA Node), modify  the `docker-compose.yml` file adding your affiliate name (which must be agreed with CEGA beforehand) in an environment variable:
-
- ```yaml
- mq:
-    environment:
-		- AFFILIATE_NAME=xxxx
-
-```
+The master key should be stored securely.
 
 # Container images
 
 Create the docker images with:
 
-	make -j3 images LEGA_UID=$(id -u lega) LEGA_GID=$(id -g lega)
+	make -j5 images
+
+# Network
+
+Create a external network to simulate public/external access (say to Central EGA or France EGA).  
+We name it `fega-external`.
+
+	docker network create fega-external
 
 # The vault database
 
-Prepare the vault database 
+You can pre-generate the file `confs/pg_su_password` with the superuser password.  
+(if you don't, one will be generated with `super-secret`)
 
-	echo 'very-strong-password' > pg_vault_su_password
-	chmod 600 pg_vault_su_password
-	make init-vault
-	
-	# start the database
-	docker-compose up -d vault-db
-	
-Update the database password for the following database users. First
-use `make psql`, to connect, and then issue the following SQL
-commands:
+Then, initialize the Vault-DB before booting it
 
-	-- To input data
-	ALTER ROLE lega WITH PASSWORD 'strong-password';
+	make db
 
-	-- To distribute data
-	ALTER ROLE distribution WITH PASSWORD 'another-strong-password';
-
-Update the handler `lega.ini` configuration file, with the `lega` user password from the database.
-
-In the `pg.conf` file, update the `crypt4gh.master_seckey` secret with the hex value of the master private key.  
-You can run the following python snippet to get it: (you need the `crypt4gh` package: `pip install crypt4gh`).
-
-```python
-import crypt4gh.keys
-
-key_content = crypt4gh.keys.get_private_key("/path/to/master.key.sec", lambda: "passphrase")
-
-print(key_content.hex())
-```
-
-The `pg_hba.conf` controls the network accesses to the database.  
-The default supplied one is not very restrictive, and you should adjust it in your production environment.  
-(For example, by enabling TLS/SSL in the `pg.conf` and restricting network CIDRs in `pg_hba.conf`).
+This will add the SQL definitions and necessary (dummy) settings (See `confs/vault-db.sql`)
 
 # Instantiate the containers 
 
 Finally, you are now ready to instantiate the containers
 
-	# We start with the inbox, and the broker, (the vault database is already started above)
-	docker-compose up -d inbox mq vault-db
+	make up
 	
-	# We wait a bit, and check that they are up
-	# And we start the handler, that connects to the broker and the vault database
-	docker-compose up -d handler
+Check the containers' status with
 
+	make ps
+
+We tried to include heathchecks to start in the right order. If that's
+not the case, (say the message broker didn't start fast enough) then
+restart again with the above.
+
+
+You should get something like:
+
+```
+NAME              IMAGE                    COMMAND                  SERVICE      CREATED          STATUS                            PORTS
+lega-archiver-1   lega/archiver:latest     "python -m code /etc…"   archiver-1   14 seconds ago   Up 2 seconds
+lega-archiver-2   lega/archiver:latest     "python -m code /etc…"   archiver-2   14 seconds ago   Up 2 seconds
+lega-archiver-3   lega/archiver:latest     "python -m code /etc…"   archiver-3   14 seconds ago   Up 2 seconds
+lega-archiver-4   lega/archiver:latest     "python -m code /etc…"   archiver-4   14 seconds ago   Up 2 seconds
+lega-dispatcher   lega/dispatcher:latest   "python -m code /etc…"   dispatcher   14 seconds ago   Up 2 seconds
+lega-inbox        lega/inbox:latest        "/usr/local/bin/entr…"   inbox        14 seconds ago   Up 13 seconds (healthy)           0.0.0.0:15676->15672/tcp, [::]:15676->15672/tcp
+lega-ingester-1   lega/ingester:latest     "python -m code /etc…"   ingester-1   14 seconds ago   Up 2 seconds
+lega-ingester-2   lega/ingester:latest     "python -m code /etc…"   ingester-2   14 seconds ago   Up 2 seconds
+lega-ingester-3   lega/ingester:latest     "python -m code /etc…"   ingester-3   14 seconds ago   Up 2 seconds
+lega-ingester-4   lega/ingester:latest     "python -m code /etc…"   ingester-4   14 seconds ago   Up 2 seconds
+lega-mq           lega/mq                  "/usr/local/bin/ega-…"   mq           14 seconds ago   Up 7 seconds (healthy)            0.0.0.0:5672->5672/tcp, [::]:5672->5672/tcp, 0.0.0.0:15672->15672/tcp, [::]:15672->15672/tcp
+lega-vault-db     lega/vault-db:latest     "postgres -c config_…"   vault-db     14 seconds ago   Up 2 seconds (health: starting)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+```
 You can follow along with
 
-	docker-compose logs -f
+	make logs
 
 and tear all down with
 
-	docker-compose down -v
+	make down
 
-Note that the `mq` component will try to create a federated queue to another RabbitMQ server. In `cega` folder, you will find the necessary components to fake Central EGA, and test your local deployment in isolation.
+
+# Local access and logging
+
+The python containers and the vault-db ship their logs to `stderr` (see [`confs/logger.json`](confs/logger.json).
+
+You can inspect:
+* the MQ broker on [port 15676](http://localhost:15676),
+* the inbox MQ broker on [port 15672](http://localhost:15672) and,
+
+If you want to inspect SQLite `ingestion.db` in the container (we don't inject it), you need to install `sqlite3` in the container (we didn't include it to keep the image smaller).
+That way, you can inspect the _running ingestion jobs_ in the `confs/ingestion.db` database with 
+
+	docker compose exec --user root dispatcher
+	# apt update
+	# apt install sqlite3 confs/ingestion.db
+	# sqlite3 /etc/ega/ingestion.db
+	> select * from jobs;
+
+The logging facility is kept minimal on purpose in this repo, because each sub-node installing it will have its own version of logging and tracing.  
+The code is just ready to ship where needed.
+
+# Central EGA and France EGA
+
+Get the instructions to run locally the France EGA (and its fake Central EGA service) from [https://github.com/FEGA-France/RelayEGA](https://github.com/FEGA-France/RelayEGA).
+
+The message broker `mq` tries to connect to the Central EGA broker itself, or to the France EGA one. It'll keep as long as it can, so expect to see connection errors in the `mq` logs until you boot the connected broker.
+
+The inbox does not connect to NSS from FranceEGA/CentralEGA, it has its own internal system-user.
+
+In the FEGA France repo/directory, we created an SSH-keypair and
+inject the public part in the `authrized_keys` of this user, in the
+LEGA-inbox container. That way, FEGA-inbox keeps the private part and can connect to LEGA-inbox.
+
+	# Go to the FEGA France repo/directory
+	cd [fega-france]/deploy/docker
+	make authorized-keys
+
+
+If you already have credentials for a test environment from FranceEGA/CentralEGA, you can update the docker-compose environment variable for the `mq` containers.

@@ -1,0 +1,3 @@
+aiohttp
+#crypt4gh==1.8.6
+crypt4gh==1.7

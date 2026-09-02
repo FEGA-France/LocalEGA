@@ -1,0 +1,7 @@
+CREATE SCHEMA crypt4gh;
+
+CREATE EXTENSION pg_crypt4gh SCHEMA crypt4gh;
+
+CREATE EXTENSION pg_amqp;
+
+CREATE SCHEMA sqlite_fs;

@@ -1,0 +1,65 @@
+#LogLevel VERBOSE
+Port 22
+PidFile /run/ega-sshd/sshd.pid
+#Protocol 2 # deprecated
+
+Banner  /opt/LocalEGA/etc/sshd/banner
+
+HostKey /opt/LocalEGA/etc/sshd/host_ed25519_key
+HostKey /opt/LocalEGA/etc/sshd/host_rsa_key
+HostKey /opt/LocalEGA/etc/sshd/host_dsa_key
+
+AcceptEnv LANG LC_ALL LANGUAGE
+
+# Faster connection
+UseDNS no
+
+###############################
+# Hardened Security
+###############################
+
+# Authentication
+UsePAM yes
+AuthenticationMethods "publickey" "keyboard-interactive:pam"
+PubkeyAuthentication yes
+PasswordAuthentication no
+ChallengeResponseAuthentication yes
+
+# Limited access
+DenyUsers root
+#DenyGroups *,!requesters
+AllowGroups requesters
+
+PermitRootLogin no
+PermitEmptyPasswords no
+
+DisableForwarding yes
+#X11Forwarding no
+#AllowTcpForwarding no
+#PermitTunnel no
+
+###############################
+# Read-only SFTP
+###############################
+Subsystem sftp internal-sftp -d outbox -R
+ForceCommand internal-sftp -d outbox -R
+# with/without "-l VERBOSE"
+
+# Chroot to <homedir> (whether it is /home/<id>, or /home/<username>, /opt/LocalEGA/home/username/, or other...)
+ChrootDirectory %h
+
+###############################
+# Retrieving the SSH public keys
+###############################
+
+AuthorizedKeysCommand /usr/bin/cat /opt/LocalEGA/etc/authorized_keys/%U
+AuthorizedKeysCommandUser postgres
+# %u = username 
+# %U = userid
+## We don't use the files directly cuz they are not owned by the users.
+
+Compression no
+
+LoginGraceTime 30
+MaxStartups 10:30:60
+# See https://www.man7.org/linux/man-pages/man5/sshd_config.5.html
