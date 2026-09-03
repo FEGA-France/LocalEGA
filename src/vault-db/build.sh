@@ -29,7 +29,7 @@ if [ "$(id -u)" = '0' ]; then
 
     mkdir -p /var/run/postgresql || :
     chmod 775 /var/run/postgresql || :
-    chown postgres "$PGDATA"
+    chown postgres /var/run/postgresql
 
     # Restart as the postgres user
     exec gosu postgres "$BASH_SOURCE" "$@"
