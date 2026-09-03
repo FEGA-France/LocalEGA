@@ -97,15 +97,13 @@ BEGIN
         WHEN 'keys.updated' THEN
             PERFORM public.process_user_keys_message(_message);
 
-	-- datasets
-        WHEN 'dac' THEN
-            PERFORM public.process_dac_message(_message);
-        WHEN 'dac.dataset' THEN
-            PERFORM public.process_dac_dataset_message(_message);
-        WHEN 'dac.members' THEN
-            PERFORM public.process_dac_members_message(_message);
-        WHEN 'dac' THEN
-            PERFORM public.process_dac_dataset_message(_message);
+	-- -- datasets ------- Invalid here
+        -- WHEN 'dac' THEN
+        --     PERFORM public.process_dac_message(_message);
+        -- WHEN 'dac.dataset' THEN
+        --     PERFORM public.process_dac_dataset_message(_message);
+        -- WHEN 'dac.members' THEN
+        --     PERFORM public.process_dac_members_message(_message);
 
         -- Add more cases as needed
         ELSE
