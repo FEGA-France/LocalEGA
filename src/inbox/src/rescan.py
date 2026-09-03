@@ -11,8 +11,8 @@ import pwd
 
 import aiormq
 
-INBOX =  os.getenv('FEGA_INBOX')
-assert INBOX, "Missing FEGA_INBOX environment"
+INBOX =  os.getenv('LEGA_INBOX')
+assert INBOX, "Missing LEGA_INBOX environment"
 
 BUFSIZE = os.getenv('BUFFER_SIZE', getpagesize())
 
