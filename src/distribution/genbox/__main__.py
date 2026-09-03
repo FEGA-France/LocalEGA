@@ -34,11 +34,18 @@ async def generate(args, cur, dsn):
     try:
         LOG.info("Fetching Vault DB entries for %s", args.username)
 
+        pubkeys = []
+        for pubkey in args.pubkeys:
+            with open(pubkey) as f:
+                pubkeys.append(f.read().strip())
+
         # =========================
         # Datasets and Files
         # =========================
-        rows = await conn_src.fetch('SELECT * FROM sqlite_fs.datasets($1)',
-                                    args.username)
+        rows = await conn_src.fetch('''SELECT *
+                                       FROM sqlite_fs.datasets($1::text, $2::text[],
+                                                              _include_user_keys => FALSE)''',
+                                    args.username, pubkeys)
 
         cur.execute('''INSERT INTO entries(inode,name,parent_inode,nlink,is_dir)
                        VALUES (2,'datasets',1,2,1)''')
@@ -139,6 +146,9 @@ if __name__ == '__main__':
                         default='/data/vault')
     parser.add_argument('--additional-data',
                         help="JSON-formatted file of additional tools and reference files")
+    parser.add_argument('-k','--pk', action='append',
+                        dest='pubkeys', metavar='pubkey',
+                        help='Recipient public key path. (Can be repeated)')
 
     args = parser.parse_args()
 
