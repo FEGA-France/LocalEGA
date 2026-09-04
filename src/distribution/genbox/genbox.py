@@ -44,8 +44,8 @@ async def generate(args, cur, dsn):
         # =========================
         rows = await conn_src.fetch('''SELECT *
                                        FROM sqlite_fs.datasets($1::text, $2::text[],
-                                                              _include_user_keys => FALSE)''',
-                                    args.username, pubkeys)
+                                                              _include_user_keys => $3)''',
+                                    args.username, pubkeys, args.include_user_keys)
 
         cur.execute('''INSERT INTO entries(inode,name,parent_inode,nlink,is_dir)
                        VALUES (2,'datasets',1,2,1)''')
@@ -149,6 +149,9 @@ if __name__ == '__main__':
     parser.add_argument('-k','--pk', action='append',
                         dest='pubkeys', metavar='pubkey',
                         help='Recipient public key path. (Can be repeated)')
+    parser.add_argument('-u', '--user', dest='include_user_keys',
+                        help="Include user's pubkeys",
+                        action='store_true')
 
     args = parser.parse_args()
 
