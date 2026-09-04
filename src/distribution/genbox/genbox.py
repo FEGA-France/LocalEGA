@@ -44,7 +44,7 @@ async def generate(args, cur, dsn):
         # =========================
         rows = await conn_src.fetch('''SELECT *
                                        FROM sqlite_fs.datasets($1::text, $2::text[],
-                                                              _include_user_keys => $3)''',
+                                                               include_user_keys => $3)''',
                                     args.username, pubkeys, args.include_user_keys)
 
         cur.execute('''INSERT INTO entries(inode,name,parent_inode,nlink,is_dir)

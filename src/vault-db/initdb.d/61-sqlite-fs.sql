@@ -1,6 +1,6 @@
--- if depends on 60 for: fs.decrypted_filesize and fs.header_size
-
--- DROP FUNCTION sqlite_fs.datasets(_username text);
+-- DROP FUNCTION sqlite_fs.datasets(text);
+-- DROP FUNCTION sqlite_fs.datasets(text, text, boolean);
+-- DROP FUNCTION sqlite_fs.datasets(text, text[], boolean);
 
 
 CREATE OR REPLACE FUNCTION sqlite_fs.parse_pubkey(_key text)
@@ -24,9 +24,9 @@ $_$;
 
 
 
-CREATE OR REPLACE FUNCTION sqlite_fs.datasets(_username text,
-       	  	  	                      _pubkeys text[],
-        				      _include_user_keys boolean DEFAULT TRUE)
+CREATE OR REPLACE FUNCTION sqlite_fs.datasets(username text,
+       	  	  	                      pubkeys text[],
+        				      include_user_keys boolean DEFAULT FALSE)
 RETURNS TABLE(
                stable_id      text,
 	       filename      text,
@@ -56,10 +56,10 @@ BEGIN
 	-- checks
 	SELECT ut.id INTO _user_id
 	FROM public.user_table ut
-	WHERE username = lower(_username);
+	WHERE username = lower(username);
 
 	IF _user_id IS NULL THEN
-	   RAISE EXCEPTION 'Could not find user id of user %', _username;
+	   RAISE EXCEPTION 'Could not find user id of user %', username;
 	END IF;
 
 	-- RAISE NOTICE '_user_id is %', _user_id;
@@ -71,10 +71,10 @@ BEGIN
 		         THEN sqlite_fs.parse_pubkey(key)
 		         ELSE NULL
 		    END AS pubkey
-	     FROM unnest(_pubkeys) AS t(key)
+	     FROM unnest(pubkeys) AS t(key)
 	     UNION -- ALL
 	     SELECT -- DISTINCT
-	            CASE WHEN _include_user_keys
+	            CASE WHEN include_user_keys
 		         THEN ukt.pubkey
 		         ELSE NULL
 		    END AS pubkey
@@ -88,7 +88,9 @@ BEGIN
 	WHERE pubkey IS NOT NULL
 	;
 
-        IF cardinality(_recipient_keys) = 0 THEN
+	-- RAISE NOTICE '% recipient keys: %', cardinality(_recipient_keys), _recipient_keys;
+
+        IF _recipient_keys IS NULL OR cardinality(_recipient_keys) = 0 THEN
            RAISE EXCEPTION 'no encryption keys found';
         END IF;
 
@@ -115,9 +117,9 @@ END;
 $_$;
 
 
-CREATE OR REPLACE FUNCTION sqlite_fs.datasets(_username text,
-       	  	  	                      _pubkey text,
-        				      _include_user_keys boolean DEFAULT TRUE)
+CREATE OR REPLACE FUNCTION sqlite_fs.datasets(username text,
+       	  	  	                      pubkey text,
+        				      include_user_keys boolean DEFAULT FALSE)
 RETURNS TABLE(
                stable_id      text,
 	       filename      text,
@@ -136,14 +138,36 @@ RETURNS TABLE(
 	       dataset_stable_id text,
 	       dataset_ctime     bigint,
 	       dataset_mtime     bigint)
-LANGUAGE plpgsql
+LANGUAGE SQL
 AS $_$
-BEGIN
+	SELECT * FROM sqlite_fs.datasets(username,
+				         ARRAY[pubkey]::text[],
+	       	      			 include_user_keys => include_user_keys);
+$_$;
 
-	RETURN QUERY
-	SELECT * FROM sqlite_fs.datasets(_username,
-				         ARRAY[_pubkey]::text[],
-	       	      			 _include_user_keys => _include_user_keys);
+CREATE OR REPLACE FUNCTION sqlite_fs.datasets(username text)
+RETURNS TABLE(
+               stable_id      text,
+	       filename      text,
 
-END;
+	       ctime         bigint,
+	       mtime         bigint,
+	       payload_size  bigint,
+
+	       rel_path      text,
+	       header        bytea,
+ 	       prepend       bytea,
+ 	       append 	     bytea,
+
+	       sha256         bytea,
+
+	       dataset_stable_id text,
+	       dataset_ctime     bigint,
+	       dataset_mtime     bigint)
+LANGUAGE SQL
+AS $_$
+	SELECT * FROM sqlite_fs.datasets(username,
+				         ARRAY[]::text[],
+	       	      			 include_user_keys => TRUE);
+
 $_$;
