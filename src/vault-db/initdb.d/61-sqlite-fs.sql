@@ -24,7 +24,7 @@ $_$;
 
 
 
-CREATE OR REPLACE FUNCTION sqlite_fs.datasets(username text,
+CREATE OR REPLACE FUNCTION sqlite_fs.datasets(_username text,
        	  	  	                      pubkeys text[],
         				      include_user_keys boolean DEFAULT FALSE)
 RETURNS TABLE(
@@ -56,10 +56,10 @@ BEGIN
 	-- checks
 	SELECT ut.id INTO _user_id
 	FROM public.user_table ut
-	WHERE username = lower(username);
+	WHERE username = lower(_username);
 
 	IF _user_id IS NULL THEN
-	   RAISE EXCEPTION 'Could not find user id of user %', username;
+	   RAISE EXCEPTION 'Could not find user id of user %', _username;
 	END IF;
 
 	-- RAISE NOTICE '_user_id is %', _user_id;
