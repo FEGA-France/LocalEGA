@@ -9,7 +9,8 @@ volumes:
   mq:
   inbox:
   staging:
-  vault:
+  lega-vault:
+    external: true
   vault.bkp:
   lega-vault-db:
     external: true
@@ -28,7 +29,7 @@ services:
     #     - LEGA_GID=20 #$(id -g)
     ports:
       - 15676:15672
-    #   - 2222:22
+      # - 2222:22
     image: lega/inbox:latest
     volumes:
       - inbox:/ega/inbox/upload
@@ -179,7 +180,7 @@ services:
       - ./confs/logger.json:/etc/ega/logger.json:ro
       - staging:/ega/staging
       - vault.bkp:/ega/backup
-      - vault:/ega/vault
+      - lega-vault:/ega/vault
 
   archiver-2:
     depends_on:
@@ -198,7 +199,7 @@ services:
       - ./confs/logger.json:/etc/ega/logger.json:ro
       - staging:/ega/staging
       - vault.bkp:/ega/backup
-      - vault:/ega/vault
+      - lega-vault:/ega/vault
 
   archiver-3:
     depends_on:
@@ -217,7 +218,7 @@ services:
       - ./confs/logger.json:/etc/ega/logger.json:ro
       - staging:/ega/staging
       - vault.bkp:/ega/backup
-      - vault:/ega/vault
+      - lega-vault:/ega/vault
 
   archiver-4:
     depends_on:
@@ -236,7 +237,7 @@ services:
       - ./confs/logger.json:/etc/ega/logger.json:ro
       - staging:/ega/staging
       - vault.bkp:/ega/backup
-      - vault:/ega/vault
+      - lega-vault:/ega/vault
 
 
   vault-db:

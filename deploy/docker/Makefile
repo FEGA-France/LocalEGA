@@ -4,6 +4,7 @@ ARGS =
 all: images db
 
 DB_DATA_VOLUME=lega-vault-db
+VAULT_DATA_VOLUME=lega-vault
 
 DC=docker compose
 
@@ -71,11 +72,16 @@ setup-db:
 wait-db:
 	@sleep 2
 
-.PHONY: $(DB_DATA_VOLUME)
+.PHONY: $(DB_DATA_VOLUME) $(VAULT_DATA_VOLUME)
 $(DB_DATA_VOLUME):
 	@docker volume create $@
 rm-db:
 	-docker volume rm $(DB_DATA_VOLUME)
+
+$(VAULT_DATA_VOLUME):
+	@docker volume create $@
+rm-vault-volume:
+	-docker volume rm $(VAULT_DATA_VOLUME)
 
 logs-db:
 	-$(DC) logs -f vault-db
@@ -107,7 +113,7 @@ ps:
 	@$(DC) ps
 psa:
 	@$(DC) ps -a
-up:
+up: $(VAULT_DATA_VOLUME)
 	@$(DC) up -d
 down:
 	@$(DC) down -v
