@@ -31,3 +31,6 @@ AcceptEnv XMODIFIERS
 
 Subsystem sftp internal-sftp -u 077 -d /upload -l INFO
 ChrootDirectory /ega/inbox
+
+# No re-keying
+RekeyLimit 200G none
