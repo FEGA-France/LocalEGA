@@ -1,0 +1,14 @@
+[Unit]
+Description=FEGA FUSE Filesystem
+After=network.target
+After=data-vault.mount
+
+[Mount]
+
+EnvironmentFile=/etc/fega/options.conf
+UMask=0227
+
+Type=fega
+What=/etc/fega/fs.sqlite
+Where=/data/fega
+Options=$OPTS

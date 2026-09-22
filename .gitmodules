@@ -28,7 +28,3 @@
 	path = src/distribution/openssh/src
 	url = https://github.com/openssh/openssh-portable.git
 # 	branch = V_10_4_P1
-[submodule "crypt4gh-sqlite"]
-	path = src/distribution/crypt4gh-sqlite
-	url = https://github.com/silverdaz/crypt4gh-sqlite.git
-	branch = main
