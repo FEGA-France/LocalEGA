@@ -29,7 +29,7 @@ AcceptEnv LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT
 AcceptEnv LC_IDENTIFICATION LC_ALL LANGUAGE
 AcceptEnv XMODIFIERS
 
-Subsystem sftp internal-sftp -u 077 -d /upload -l INFO
+Subsystem sftp internal-sftp -u 077 -l INFO
 ChrootDirectory /ega/inbox
 
 # No re-keying
