@@ -17,15 +17,15 @@ AC_PROG_CPP
 #AC_PROG_INSTALL
 AC_PROG_AWK
 AC_CHECK_TOOL([PKG_CONFIG], [pkg-config])
-AC_PROG_RANLIB
-AC_CHECK_TOOL([AR], [ar])
 
-# System features
-if test -z "$AR" ; then
-   AC_MSG_ERROR([*** 'ar' missing, please install or fix your \$PATH ***])
-fi
+#AC_PROG_RANLIB
+#AC_CHECK_TOOL([AR], [ar])
+# # System features
+# if test -z "$AR" ; then
+#    AC_MSG_ERROR([*** 'ar' missing, please install or fix your \$PATH ***])
+# fi
 
-AC_C_INLINE
+#AC_C_INLINE
 # AC_C_BIGENDIAN
 
 
@@ -186,6 +186,7 @@ AC_RUN_IFELSE(
 			101*)   ;; # 1.1.x
 			200*)   ;; # LibreSSL
 			3*)   ;; # OpenSSL 3.x
+			4*)   ;; # OpenSSL 4.x
 		        *)
 				AC_MSG_ERROR([OpenSSL >= 3.x required (have "$ssl_library_ver")])
 		                ;;
@@ -658,6 +659,22 @@ if test "x$ac_cv_have_ssize_t" = "xyes" ; then
 	AC_DEFINE([HAVE_SSIZE_T], [1], [define if you have ssize_t data type])
 fi
 
+#######################################################
+# SSH keys support
+#######################################################
+
+AC_DEFINE_UNQUOTED([WITH_SSH_KEYS], [0], [define if you want support for OpenSSH keys])
+ssh_keys_flag=no
+AC_ARG_WITH([ssh-keys],
+	[  --with-ssh-keys	Support for ssh-keys],
+	[
+		if test -n "$withval"  &&  test "x$withval" != "xno"; then
+		   AC_DEFINE([WITH_SSH_KEYS], [1], [define if you want support for OpenSSH keys])
+		   ssh_keys_flag=yes
+		fi
+	]
+)
+
 
 #######################################################
 # Debug options
@@ -721,6 +738,7 @@ AC_OUTPUT
    echo "         Definitions: ${DEFS} $DEBUG"
    echo "        Linker flags: ${LDFLAGS}"
    echo "                LIBS: ${LIBS}"
+   echo "    Support SSH keys: ${ssh_keys_flag}"
    echo ""
 #fi
 

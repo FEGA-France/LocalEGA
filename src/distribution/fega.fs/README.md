@@ -13,10 +13,15 @@ Requirements:
 ## Install
 
 	autoreconf
-	./configure
+	./configure --bindir=/usr/sbin
 	make
 	sudo make install
 
 ## Example
 
 We include a simple [example](example). It shows how to prepend/append data, decrypt a Crypt4GH file, or not (ie passthrough).
+
+
+## Development
+
+	apt install gcc autoconf libsodium-dev libcrypto-dev

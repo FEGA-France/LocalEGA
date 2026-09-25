@@ -52,6 +52,7 @@ install: $(TARGET)
 distclean: clean
 	-rm -f Makefile src/config.h* config.status configure config.log
 	-rm -rf autom4te.cache aclocal.m4 src/.depend.old
+	-rm -rf config.guess config.sub
 
 
 ###################################
