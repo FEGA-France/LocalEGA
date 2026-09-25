@@ -7,9 +7,17 @@ bufsize = 8388608
 # 64 MB
 #bufsize = 67108864
 
+skip_backup = False
+
 [staging]
 # %s will be the username
 location = /ega/staging/%s
+
+[data]
+location = /ega/data
+
+[tools]
+location = /ega/tools
 
 [vault]
 location = /ega/vault

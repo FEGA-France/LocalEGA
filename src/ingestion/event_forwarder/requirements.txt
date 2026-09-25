@@ -1,4 +1,0 @@
-aiormq
-bcrypt
-asyncpg
-crypt4gh==1.7
