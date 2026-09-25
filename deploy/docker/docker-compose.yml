@@ -29,10 +29,10 @@ services:
     #     - LEGA_GID=20 #$(id -g)
     ports:
       - 15676:15672
-      # - 2222:22
+      - 2222:22
     image: lega/inbox:latest
     volumes:
-      - inbox:/ega/inbox/upload
+      - inbox:/ega/inbox/home
     healthcheck:
       test: ["CMD-SHELL", "gosu rabbitmq rabbitmq-diagnostics -q ping"]
       # Because /root/.erlang.cookie might differ from /var/lib/rabbitmq/.erlang.cookie
