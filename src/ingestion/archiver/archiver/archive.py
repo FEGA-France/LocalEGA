@@ -50,7 +50,8 @@ async def checkum_and_compare(path, filesize, orgmd, chunksize=1<<23): # 8 MB
 
 async def _do_copy(bufsize, staging_path, destinations):
 
-    LOG.info('Copying...') 
+    assert destinations, "Missing archiving destinations"
+    LOG.info('Archiving...') 
     payload_filesize = os.stat(staging_path).st_size
     tracer = Tracer('Processing', payload_filesize)
     payload_sha256 = hashlib.sha256()
@@ -96,12 +97,7 @@ async def _do_copy(bufsize, staging_path, destinations):
                                   payload_filesize, payload_sha256_checksum,
                                   chunksize=bufsize)
 
-    # saving info on success
-    set_info(vault_path, 'sha256', payload_sha256_checksum)
-
-    # Vault and Backup file: read-only (umask already applied)
-    for f in destinations:
-        os.chmod(f, os.stat(f).st_mode & 0o444)
+    return payload_sha256_checksum
 
 
 async def execute(config, message):
@@ -163,7 +159,14 @@ async def execute(config, message):
 
     # ... and cue music
     try:
-        await _do_copy(bufsize, staging_path, destinations)
+        checksum = await _do_copy(bufsize, staging_path, destinations)
+
+        # saving info on success (first = vault_path)
+        set_info(vault_path, 'sha256', checksum)
+
+        # Vault and Backup file: read-only (umask already applied)
+        for f in destinations:
+            os.chmod(f, os.stat(f).st_mode & 0o444)
 
         # Success: send completion
         data['type'] = 'archival.completed'

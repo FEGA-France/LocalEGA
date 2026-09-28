@@ -381,9 +381,9 @@ BEGIN
 	   RAISE EXCEPTION 'User not found for %', _json_message;
 	END IF;
 
-	INSERT INTO tre.user_selection_table(user_id, selection)
-    	VALUES (_user_id, _json_message)
-    	ON CONFLICT
+	INSERT INTO public.user_selection_table(user_id, selection)
+    	VALUES (_user_id, _json_message->'selection')
+    	ON CONFLICT (user_id)
     	DO UPDATE
            SET selection = EXCLUDED.selection
         ;
