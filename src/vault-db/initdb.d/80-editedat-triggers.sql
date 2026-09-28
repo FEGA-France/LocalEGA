@@ -14,18 +14,6 @@ CREATE TRIGGER dataset_table_update_edited_columns
 BEFORE UPDATE ON public.dataset_table
 FOR EACH ROW EXECUTE PROCEDURE public.update_edited_columns();
 
-CREATE TRIGGER dac_table_update_edited_columns
-BEFORE UPDATE ON public.dac_table
-FOR EACH ROW EXECUTE PROCEDURE public.update_edited_columns();
-
-CREATE TRIGGER dac_dataset_table_update_edited_columns
-BEFORE UPDATE ON public.dac_dataset_table
-FOR EACH ROW EXECUTE PROCEDURE public.update_edited_columns();
-
-CREATE TRIGGER dac_user_table_update_edited_columns
-BEFORE UPDATE ON public.dac_user_table
-FOR EACH ROW EXECUTE PROCEDURE public.update_edited_columns();
-
 CREATE TRIGGER dataset_file_table_update_edited_columns
 BEFORE UPDATE ON public.dataset_file_table
 FOR EACH ROW EXECUTE PROCEDURE public.update_edited_columns();

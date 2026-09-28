@@ -24,6 +24,19 @@ CREATE TABLE public.user_table
     edited_at               timestamp(6) with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE public.user_selection_table
+(
+    user_id           bigint NOT NULL PRIMARY KEY REFERENCES public.user_table(id),
+    selection         jsonb,
+
+    -- auditing
+    created_by_db_user      text NOT NULL DEFAULT CURRENT_USER,
+    created_at              timestamp(6) with time zone NOT NULL DEFAULT now(),
+    edited_by_db_user       text NOT NULL DEFAULT CURRENT_USER,
+    edited_at               timestamp(6) with time zone NOT NULL DEFAULT now()
+);
+
+
 ----------
 -- KEYS --
 ----------
@@ -101,53 +114,6 @@ CREATE TABLE public.dataset_table(
     edited_at               timestamp(6) with time zone NOT NULL DEFAULT now()
 
 );
-
-----------
--- DACS --
-----------
-
-CREATE TABLE public.dac_table(
-        stable_id       text NOT NULL PRIMARY KEY,
-        title           text NOT NULL,
-	description 	text,
-
-    -- auditing
-    created_by_db_user      text NOT NULL DEFAULT CURRENT_USER,
-    created_at              timestamp(6) with time zone NOT NULL DEFAULT now(),
-    edited_by_db_user       text NOT NULL DEFAULT CURRENT_USER,
-    edited_at               timestamp(6) with time zone NOT NULL DEFAULT now()
-
-);
-
-CREATE TABLE public.dac_dataset_table (
-	dac_stable_id		text NOT NULL REFERENCES public.dac_table(stable_id),
-	dataset_stable_id	text NOT NULL REFERENCES Public.dataset_table(stable_id),
-	PRIMARY KEY (dac_stable_id, dataset_stable_id),
-
-    -- auditing
-    created_by_db_user      text NOT NULL DEFAULT CURRENT_USER,
-    created_at              timestamp(6) with time zone NOT NULL DEFAULT now(),
-    edited_by_db_user       text NOT NULL DEFAULT CURRENT_USER,
-    edited_at               timestamp(6) with time zone NOT NULL DEFAULT now()
-);
-
-CREATE TYPE public.member_type AS ENUM ('member', 'admin');
-
-CREATE TABLE IF NOT EXISTS public.dac_user_table
-(
-    dac_stable_id text NOT NULL REFERENCES public.dac_table(stable_id),
-    user_id bigint NOT NULL REFERENCES public.user_table(id),
-    PRIMARY KEY (dac_stable_id, user_id),
-
-    is_main boolean NOT NULL,
-    member_type public.member_type NOT NULL,
-
-    created_by_db_user text NOT NULL DEFAULT CURRENT_USER,
-    created_at timestamp(6) with time zone NOT NULL DEFAULT now(),
-    edited_by_db_user text NOT NULL DEFAULT CURRENT_USER,
-    edited_at timestamp(6) with time zone NOT NULL DEFAULT now()
-);
-
 
 -----------
 -- FILES --
