@@ -99,7 +99,7 @@ BEGIN
 
 	-- TRE
         WHEN 'tre' THEN
-            PERFORM public.process_tre_message(_message);
+            PERFORM tre.process_list_message(_message);
 
         -- Add more cases as needed
         ELSE

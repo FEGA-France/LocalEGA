@@ -76,81 +76,36 @@ async def generate(args, cur, dsn):
 
 
         # =========================
-        # Reference files
+        # Reference files / Tools
         # =========================
-        info = await conn_src.fetchval('''SELECT selection
-                                          FROM tre.user_selection_table WHERE username = $1''',
-                                          args.username)
-        info = json.loads(info) # it's jsonb
-
-        data = info['selection'].get('data', [])
-
-        for d in data: 
-            fspath = d.get('fspath')
-            if not fspath:
-                continue
-            rel_path = d.get('rel_path', '/dev/zero')
-            filepath = 'data/' + fspath.lstrip('/')
-            bits = filepath.split('/') # split path
-            for p in bits[:-1]: # directories
-                res = cur.execute('''INSERT INTO entries(name,parent_inode,nlink,is_dir)
-                                     VALUES (?,?,2,1)
-                                     ON CONFLICT DO NOTHING
-                                     RETURNING inode''', (p, parent_ino))
-                parent_ino = res.fetchone()[0]
-            # last parent_inode
-            filesize = 10
-            res = cur.execute('''INSERT INTO entries(name,parent_inode,nlink,size,is_dir)
-                                 VALUES (?,?,1,?,0)
-                                 RETURNING inode''', (bits[-1],
-                                                      parent_ino,
-                                                      filesize))
-            inode = res.fetchone()[0]
-            res = cur.execute('''INSERT INTO files(inode,mountpoint,rel_path,payload_size)
-                                 VALUES (?, ?, ?,?)''', (inode, args.data_mountpoint,
-                                                         rel_path,
-                                                         filesize))
-            version = d.get('version')
-            if version:
+        if args.additional_data:
+            data = json.load(args.additional_data)
+            assert isinstance(data, dict), 'Additional data should be a JSON-formatted dictionnary'
+            
+            for filepath, d in data.items(): 
+                assert isinstance(filepath, str) and filepath[:1] == '/' # graceful degradation
+                bits = filepath.ltrim('/').split('/') # split path
+                parent_ino = 1 # since we use absolute path
+                for p in bits[:-1]: # directories
+                    res = cur.execute('''INSERT INTO entries(name,parent_inode,nlink,is_dir)
+                                         VALUES (?,?,2,1)
+                                         ON CONFLICT DO NOTHING
+                                         RETURNING inode''', (p, parent_ino))
+                    parent_ino = res.fetchone()[0]
+                # last parent_inode
+                res = cur.execute('''INSERT INTO entries(name,parent_inode,nlink,size,is_dir)
+                                     VALUES (?,?,1,?,0)
+                                     RETURNING inode''', (bits[-1],
+                                                          parent_ino,
+                                                          d['filesize']))
+                inode = res.fetchone()[0]
+                res = cur.execute('''INSERT INTO files(inode,mountpoint,rel_path,payload_size)
+                                     VALUES (?, '', ?,?)''', (inode, # yeah, hard-coding it
+                                                              d['rel_path'],
+                                                              d['filesize']))
                 res = cur.execute('''INSERT INTO extended_attributes(inode,name,value)
-                                     VALUES (?,'version',?)''', (inode, version))
-
-        # =========================
-        # Tools
-        # =========================
-        tools = info['selection'].get('tools', [])
-
-        for d in tools:
-            fspath = d.get('fspath')
-            if not fspath:
-                continue
-            rel_path = d.get('rel_path', '/dev/zero')
-            filepath = 'tools/' + fspath.lstrip('/')
-            bits = filepath.split('/') # split path
-            for p in bits[:-1]: # directories
-                res = cur.execute('''INSERT INTO entries(name,parent_inode,nlink,is_dir)
-                                     VALUES (?,?,2,1)
-                                     ON CONFLICT DO NOTHING
-                                     RETURNING inode''', (p, parent_ino))
-                parent_ino = res.fetchone()[0]
-            # last parent_inode
-            filesize = 10
-            res = cur.execute('''INSERT INTO entries(name,parent_inode,nlink,size,is_dir)
-                                 VALUES (?,?,1,?,0)
-                                 RETURNING inode''', (bits[-1],
-                                                      parent_ino,
-                                                      filesize))
-            inode = res.fetchone()[0]
-            res = cur.execute('''INSERT INTO files(inode,mountpoint,rel_path,payload_size)
-                                 VALUES (?, ?, ?,?)''', (inode, args.tools_mountpoint,
-                                                         rel_path,
-                                                         filesize))
-            tag = d.get('tag')
-            if tag:
-                res = cur.execute('''INSERT INTO extended_attributes(inode,name,value)
-                                     VALUES (?,'tag',?)''', (inode, tag))
-
-
+                                     VALUES (?,'version',?)''', (inode,
+                                                                 row['version']))
 
 
         if not args.silent:
@@ -189,12 +144,8 @@ if __name__ == '__main__':
     parser.add_argument('--vault-mountpoint',
                         help="Set the vault mountpoint",
                         default='/data/vault')
-    parser.add_argument('--data-mountpoint',
-                        help="Set the data mountpoint",
-                        default='/data/public')
-    parser.add_argument('--tools-mountpoint',
-                        help="Set the tools mountpoint",
-                        default='/data/tools')
+    parser.add_argument('--additional-data',
+                        help="JSON-formatted file of additional tools and reference files")
     parser.add_argument('-k','--pk', action='append',
                         dest='pubkeys', metavar='pubkey',
                         help='Recipient public key path. (Can be repeated)')

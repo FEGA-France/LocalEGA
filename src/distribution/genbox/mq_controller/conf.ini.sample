@@ -1,0 +1,18 @@
+[DEFAULT]
+# logger = /etc/ega/logger.json
+
+genbox_prefix = /data/vault/genbox
+
+[broker]
+connection = amqp://lega:secret@mq:5672/%2F
+
+queue = dispatch.composer
+qos = 10
+
+exchange = composer
+
+[db]
+path = /etc/ega/ingestion.db
+
+retry_after = 5
+

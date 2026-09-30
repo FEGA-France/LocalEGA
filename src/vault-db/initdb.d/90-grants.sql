@@ -26,3 +26,6 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA sqlite_fs TO distribution;
 GRANT USAGE     ON SCHEMA crypt4gh                                      TO distribution;
 GRANT EXECUTE   ON FUNCTION crypt4gh.header_reencrypt(bytea,bytea)      TO distribution;
 GRANT EXECUTE   ON FUNCTION crypt4gh.header_reencrypt(bytea,bytea[])    TO distribution;
+
+GRANT USAGE ON SCHEMA tre TO distribution;
+GRANT SELECT ON ALL TABLES IN SCHEMA tre TO distribution;

@@ -24,18 +24,6 @@ CREATE TABLE public.user_table
     edited_at               timestamp(6) with time zone NOT NULL DEFAULT now()
 );
 
-CREATE TABLE public.user_selection_table
-(
-    user_id           bigint NOT NULL PRIMARY KEY REFERENCES public.user_table(id),
-    selection         jsonb,
-
-    -- auditing
-    created_by_db_user      text NOT NULL DEFAULT CURRENT_USER,
-    created_at              timestamp(6) with time zone NOT NULL DEFAULT now(),
-    edited_by_db_user       text NOT NULL DEFAULT CURRENT_USER,
-    edited_at               timestamp(6) with time zone NOT NULL DEFAULT now()
-);
-
 
 ----------
 -- KEYS --

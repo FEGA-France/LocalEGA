@@ -360,35 +360,3 @@ BEGIN
 	RETURN 1;
 END
 $BODY$;
-
-
-
-CREATE OR REPLACE FUNCTION public.process_tre_message(_json_message jsonb)
-    RETURNS bigint
-    LANGUAGE 'plpgsql'
-AS $BODY$
-DECLARE
-	_user_id bigint;
-BEGIN
-
-	_user_id := NULL;
-	SELECT id INTO _user_id
-	FROM public.user_table 
-	WHERE username = TRIM(_json_message->>'username')
-	;
-
-	IF _user_id IS NULL THEN
-	   RAISE EXCEPTION 'User not found for %', _json_message;
-	END IF;
-
-	INSERT INTO public.user_selection_table(user_id, selection)
-    	VALUES (_user_id, _json_message->'selection')
-    	ON CONFLICT (user_id)
-    	DO UPDATE
-           SET selection = EXCLUDED.selection
-        ;
-
-	RETURN 1;
-
-END
-$BODY$;
