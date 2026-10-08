@@ -19,29 +19,6 @@
 		    "trust-user-id": false,
 		    "uri": "__FEGA_CONNECTION__" }
 	},
-	{"name": "from_inbox", "vhost": "/", "component": "federation-upstream",
-	 "value": { "ack-mode": "on-confirm", "queue": "fs",
-		    "trust-user-id": false,
-		    "uri": "__INBOX_CONNECTION__" }
-	},
-        {
-            "value": {
-                "ack-mode": "on-confirm",
-                "dest-add-forward-headers": false,
-                "dest-exchange": "lega",
-                "dest-exchange-key": "files.inbox",
-                "dest-protocol": "amqp091",
-                "dest-uri": "amqp://",
-                "reconnect-delay": 5,
-                "src-delete-after": "never",
-                "src-protocol": "amqp091",
-                "src-queue": "from_inbox",
-                "src-uri": "amqp://"
-            },
-            "vhost": "/",
-            "component": "shovel",
-            "name": "from_inbox"
-        },
         {
             "value": {
                 "ack-mode": "on-confirm",
@@ -80,16 +57,12 @@
     ],
     "policies": [
     	{ "vhost": "/", "name": "from_fega", "pattern": "^from_fega$", "apply-to": "queues", "priority": 0,
-      	  "definition": { "federation-upstream": "from_fega" }},
-
-    	{ "vhost": "/", "name": "from_inbox", "pattern": "^from_inbox$", "apply-to": "queues", "priority": 0,
-      	  "definition": { "federation-upstream": "from_inbox" }}
-
+      	  "definition": { "federation-upstream": "from_fega" }}
     ],
 
     "queues": [
 
-	{"name": "from_inbox", "vhost": "/", "durable": true, "auto_delete": false,
+	{"name": "from_s3", "vhost": "/", "durable": true, "auto_delete": false,
 	 "arguments":{"x-queue-type": "classic"}
 	},
 
@@ -156,12 +129,18 @@
 
     ],
     "exchanges": [
+	{"name":"s3", "vhost":"/", "type":"topic", "durable":true, "auto_delete":false, "internal":false, "arguments":{}},
+
 	{"name":"lega", "vhost":"/", "type":"topic", "durable":true, "auto_delete":false, "internal":false, "arguments":{}},
 	{"name":"lega.dead", "vhost":"/", "type":"topic", "durable":true, "auto_delete":false, "internal":false, "arguments":{}},
 	{"name":"lega.ingestion", "vhost":"/", "durable":true, "auto_delete":false, "internal":false,
 	 "type":"x-consistent-hash", "arguments":{"hash-property": "correlation_id"}}
     ], 
     "bindings": [
+
+	{ "source":"s3", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"from_s3",
+	  "routing_key":"#"},
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
 	  "destination":"to_fega",

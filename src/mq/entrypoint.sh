@@ -3,7 +3,6 @@
 set -eo pipefail
 
 [[ -z "${FEGA_CONNECTION}" ]] && echo 'Environment variable FEGA_CONNECTION is empty' 1>&2 && exit 1
-[[ -z "${INBOX_CONNECTION}" ]] && echo 'Environment variable INBOX_CONNECTION is empty' 1>&2 && exit 1
 
 # It's just the hash for password: "secret".
 # Obviously change in in production (by passing a different MQ_PASSWORD_HASH)
@@ -11,8 +10,6 @@ set -eo pipefail
 
 sed 's|__FEGA_CONNECTION__|'"${FEGA_CONNECTION}"'|' \
     /etc/rabbitmq/definitions.tmpl.json > /etc/rabbitmq/definitions.json
-
-sed -i 's|__INBOX_CONNECTION__|'"${INBOX_CONNECTION}"'|' /etc/rabbitmq/definitions.json
 
 sed -i 's|__MQ_PASSWORD_HASH__|'"${MQ_PASSWORD_HASH}"'|' /etc/rabbitmq/definitions.json
 

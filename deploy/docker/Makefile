@@ -27,6 +27,9 @@ image-mq:
 image-tre:
 	$(MAKE) -C ../../src/distribution/fake-tre latest ARGS=$(ARGS)
 
+image-s3:
+	$(MAKE) -C ../../src/s3 latest ARGS=$(ARGS)
+
 
 images: image-dispatcher image-ingester image-archiver
 images: image-inbox image-vault-db image-mq

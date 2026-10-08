@@ -4,3 +4,5 @@ example.mk
 
 confs/ingestion.db
 confs/pg_su_password
+
+s3-test
