@@ -18,7 +18,7 @@ UseDNS no
 
 # Limited access
 AllowUsers lega
-DenyUsers rabbitmq,ega-sshd,root
+DenyUsers ega-sshd,root
 PermitRootLogin no
 X11Forwarding no
 AllowTcpForwarding no
@@ -29,7 +29,8 @@ AcceptEnv LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT
 AcceptEnv LC_IDENTIFICATION LC_ALL LANGUAGE
 AcceptEnv XMODIFIERS
 
-Subsystem sftp internal-sftp -u 077 -l INFO
+# Subsystem sftp internal-sftp -u 077 -l VERBOSE -d /ega/inbox/home -f LOCAL4
+Subsystem sftp internal-sftp -u 077 -l INFO -f LOCAL4
 ChrootDirectory /ega/inbox
 
 # No re-keying

@@ -23,17 +23,15 @@ services:
     networks:
       - fega-external # public access, eg from fega-inbox/uploader
       - internal
-    # build:
-    #   context: ../../src/inbox
-    #   args:
-    #     - LEGA_UID=502 #$(id -u)
-    #     - LEGA_GID=20 #$(id -g)
     ports:
       - 15676:15672
       - 2222:22
-    image: lega/inbox:latest
     volumes:
       - inbox:/ega/inbox/home
+      # - ../../src/inbox/conf/sshd_config:/etc/ega/sshd_config:ro
+    image: lega/inbox:latest
+    # environment:
+    #   - WITH_SYSLOG=yes
 
   mq:
     environment:

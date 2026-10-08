@@ -8,7 +8,7 @@ up:
 	-p 10000:22 \
 	$(IMG):latest
 
-#	-v $(shell pwd)/tmp/data:/ega/inbox/upload \
+#	-v $(shell pwd)/tmp/data:/ega/inbox/home \
 
 
 run:

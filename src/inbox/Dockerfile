@@ -6,7 +6,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
             vim ca-certificates pkg-config git gcc cmake make automake autoconf libtool patch \
             bzip2 zlib1g-dev libssl-dev libedit-dev procps \
-            libpam0g-dev libreadline-dev
+            libpam0g-dev libreadline-dev xattr rsyslog
 
 # For Python rescan.py
 RUN pip install aiormq
@@ -33,6 +33,12 @@ root:*:19702:0:99999:7:::
 ega-sshd:*:19702:0:99999:7:::
 lega:!:19702:0:99999:7:::
 EOFSHADOW
+
+# RUN groupadd -g $((LEGA_GID + 1)) ega-sshd
+# RUN useradd -M -N -g $((LEGA_GID + 1)) -u $((LEGA_UID + 1)) -c 'Privilege-separated SSH' -d /var/empty/sshd -s /usr/sbin/nologin ega-sshd
+
+# RUN groupadd -g ${LEGA_GID} lega
+# RUN useradd -M -N -g ${LEGA_GID} -u ${LEGA_UID} -c 'Local EGA' -d /home/lega -s /usr/sbin/nologin lega
 
 RUN chgrp shadow /etc/shadow && \
     chmod 640    /etc/shadow && \
@@ -71,11 +77,30 @@ RUN  make && \
 # rsa, dsa and ed25519 keys are created in the entrypoint
      make install-nosysconf
 
-COPY conf/entrypoint.sh /usr/local/bin/entrypoint.sh
 
+#################################################
 # for test
-RUN mkdir /etc/ega && \
-    chmod 755 /usr/local/bin/entrypoint.sh
+
+COPY conf/sshd_config /etc/ega/sshd_config
+COPY conf/pam.ega /etc/pam.d/ega
+COPY conf/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY conf/banner /etc/ega/banner
+
+RUN chmod 755 /usr/local/bin/entrypoint.sh && \
+    mkdir -p /etc/ega          && \
+# for safe-chroot
+    mkdir -p /ega/inbox        && \
+    chown root:root /ega/inbox && \
+    chmod 755 /ega/inbox       && \
+# for the upload as lega:lega
+    mkdir -m 700 /ega/inbox/home && \
+    chown lega:lega /ega/inbox/home
+
+VOLUME /ega/inbox/home
+ENV FEGA_INBOX=/ega/inbox/home
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
 
 #################################################
 ##
@@ -109,6 +134,21 @@ COPY --from=build /usr/local/lib /usr/local/lib
 # OpenSSH files
 COPY --from=build /opt/openssh /opt/openssh
 
+# Rsyslog files
+COPY --from=build /usr/sbin/rsyslogd /usr/sbin/rsyslogd
+COPY --from=build /etc/rsyslog.conf /etc/rsyslog.conf
+COPY --from=build /etc/rsyslog.d /etc/rsyslog.d
+COPY --from=build /var/spool/rsyslog /var/spool/rsyslog
+# COPY --from=build /lib/$ARCH-linux-gnu/ /lib/$ARCH-linux-gnu/
+# libz.so.1 => /lib/aarch64-linux-gnu/libz.so.1 (0x0000ffffb4700000)
+# libm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ffffb4650000)
+# libestr.so.0 => /lib/aarch64-linux-gnu/libestr.so.0 (0x0000ffffb4620000)
+# libfastjson.so.4 => /lib/aarch64-linux-gnu/libfastjson.so.4 (0x0000ffffb45f0000)
+# libsystemd.so.0 => /lib/aarch64-linux-gnu/libsystemd.so.0 (0x0000ffffb44c0000)
+# libuuid.so.1 => /lib/aarch64-linux-gnu/libuuid.so.1 (0x0000ffffb4490000)
+# libcap.so.2 => /lib/aarch64-linux-gnu/libcap.so.2 (0x0000ffffb42a0000)
+
+
 # Python rescan.py
 COPY --from=build /usr/local/lib/python3.14/ /usr/local/lib/python3.14/
 COPY --chmod=0755 src/rescan.py /usr/local/bin/ega-rescan
@@ -120,8 +160,8 @@ RUN chmod 755 /usr/local/bin/entrypoint.sh && \
     chown root:root /ega/inbox && \
     chmod 755 /ega/inbox       && \
 # for the upload as lega:lega
-    mkdir -m 700 /ega/inbox/upload && \
-    chown lega:lega /ega/inbox/upload
+    mkdir -m 700 /ega/inbox/home && \
+    chown lega:lega /ega/inbox/home
 
 
 COPY conf/sshd_config /etc/ega/sshd_config
@@ -129,8 +169,8 @@ COPY conf/pam.ega /etc/pam.d/ega
 COPY conf/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY conf/banner /etc/ega/banner
 
-VOLUME /ega/inbox/upload
-ENV FEGA_INBOX=/ega/inbox/upload
+VOLUME /ega/inbox/home
+ENV FEGA_INBOX=/ega/inbox/home
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
