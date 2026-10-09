@@ -62,10 +62,6 @@
 
     "queues": [
 
-	{"name": "from_s3", "vhost": "/", "durable": true, "auto_delete": false,
-	 "arguments":{"x-queue-type": "classic"}
-	},
-
 	{"name": "from_fega", "vhost": "/", "durable": true, "auto_delete": false,
 	 "arguments":{
 	     "x-dead-letter-exchange":"lega.dead",
@@ -129,18 +125,12 @@
 
     ],
     "exchanges": [
-	{"name":"s3", "vhost":"/", "type":"topic", "durable":true, "auto_delete":false, "internal":false, "arguments":{}},
-
 	{"name":"lega", "vhost":"/", "type":"topic", "durable":true, "auto_delete":false, "internal":false, "arguments":{}},
 	{"name":"lega.dead", "vhost":"/", "type":"topic", "durable":true, "auto_delete":false, "internal":false, "arguments":{}},
 	{"name":"lega.ingestion", "vhost":"/", "durable":true, "auto_delete":false, "internal":false,
 	 "type":"x-consistent-hash", "arguments":{"hash-property": "correlation_id"}}
     ], 
     "bindings": [
-
-	{ "source":"s3", "vhost": "/", "destination_type":"queue", "arguments":{},
-	  "destination":"from_s3",
-	  "routing_key":"#"},
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
 	  "destination":"to_fega",

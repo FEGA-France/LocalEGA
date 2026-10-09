@@ -201,15 +201,6 @@ services:
       RUSTFS_CONSOLE_ENABLE: true
       RUSTFS_OBS_LOGGER_LEVEL: "error"
 
-      # Notifications
-      RUSTFS_NOTIFY_ENABLE: true
-      RUSTFS_NOTIFY_AMQP_ENABLE_PRIMARY: true
-      RUSTFS_NOTIFY_AMQP_URL_PRIMARY: "amqp://admin:secret@mq:5672/%2F"
-      RUSTFS_NOTIFY_AMQP_EXCHANGE_PRIMARY: "s3"
-      RUSTFS_NOTIFY_AMQP_ROUTING_KEY_PRIMARY: "files.s3.upload"
-      RUSTFS_NOTIFY_AMQP_QUEUE_DIR_PRIMARY: "/data/.notify/amqp"
-      RUSTFS_OUTBOUND_ALLOW_ORIGINS: "amqp://mq:5672"
-
     volumes:
       - s3-inbox:/data
     networks:

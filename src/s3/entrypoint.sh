@@ -43,10 +43,6 @@ EOF
     rc mb local/lega
     echo 'Bucket "lega" created'
 
-    # Create notification (notification enabled from envvar, and SQS already setup)
-    rc bucket event add local/lega arn:rustfs:sqs:us-east-1:primary:amqp --event put,delete
-    echo 'Bucket "lega" with notification to AMQP'
-
 ) &
 
 exec /entrypoint.sh $@
