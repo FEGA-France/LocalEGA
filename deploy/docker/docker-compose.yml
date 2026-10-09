@@ -24,7 +24,6 @@ services:
       - fega-external # public access, eg from fega-inbox/uploader
       - internal
     ports:
-      - 15676:15672
       - 2222:22
     volumes:
       - inbox:/ega/inbox/home

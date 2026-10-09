@@ -48,7 +48,7 @@ async def main(username):
             properties.correlation_id = correlation_id
         return await channel.basic_publish(m,
                                            exchange='amq.topic',
-                                           routing_key='files.inbox',
+                                           routing_key='files.inbox.rescan',
                                            properties=properties)
 
     _username = pwd.getpwuid(os.getuid()).pw_name
@@ -57,7 +57,7 @@ async def main(username):
     print('-'*10,'Erasing all inbox entries from', username, file=sys.stderr)
     await publish({ 'operation': 'remove',
                     'user': _username,
-                    'filepath': f'/upload/{username}/' })
+                    'filepath': f'/home/{username}/' })
     
     print('-'*10,'Scanning', directory, file=sys.stderr)
 
@@ -80,7 +80,7 @@ async def main(username):
         message = {
             'operation': 'upload',
             'user': _username,
-            'filepath': f'/upload/{username}' + filepath,
+            'filepath': f'/home/{username}' + filepath,
             'encrypted_checksums': [ {'type': 'sha256', 'value': sha256}],
             'filesize': s.st_size,
             'file_last_modified': int(s.st_mtime), # in seconds

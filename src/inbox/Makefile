@@ -29,10 +29,3 @@ build latest:
                --build-arg BUILD_DATE="$(shell date +%Y-%m-%d_%H.%M.%S)" \
 	       -t $(IMG):$(COMMIT) .
 	docker tag $(IMG):$(COMMIT) $(IMG):$@
-
-
-############################################################
-## Testing
-############################################################
-
--include testing.mk

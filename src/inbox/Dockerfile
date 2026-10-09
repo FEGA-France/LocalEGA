@@ -34,12 +34,6 @@ ega-sshd:*:19702:0:99999:7:::
 lega:!:19702:0:99999:7:::
 EOFSHADOW
 
-# RUN groupadd -g $((LEGA_GID + 1)) ega-sshd
-# RUN useradd -M -N -g $((LEGA_GID + 1)) -u $((LEGA_UID + 1)) -c 'Privilege-separated SSH' -d /var/empty/sshd -s /usr/sbin/nologin ega-sshd
-
-# RUN groupadd -g ${LEGA_GID} lega
-# RUN useradd -M -N -g ${LEGA_GID} -u ${LEGA_UID} -c 'Local EGA' -d /home/lega -s /usr/sbin/nologin lega
-
 RUN chgrp shadow /etc/shadow && \
     chmod 640    /etc/shadow && \
 # /var/empty/sshd must be owned by root and not group or world-writable.
@@ -50,13 +44,9 @@ RUN chgrp shadow /etc/shadow && \
     chown -R lega:lega /home/lega
 
 COPY src/openssh /var/src/openssh
-COPY src/patches /var/src/patches
 
 ######### OpenSSH
 WORKDIR /var/src/openssh
-
-# Patching the sftp-server.c
-RUN patch -p1 < ../patches/lega.patch
 
 # (re)Build OpenSSH
 RUN autoreconf && \
@@ -110,7 +100,7 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 FROM python:3.14-slim
 
-LABEL maintainer="EGA System Developers"
+LABEL maintainer="IFB System Developers"
 LABEL org.label-schema.schema-version="1.0"
 LABEL org.label-schema.vcs-url="https://github.com/FEGA-France/LocalEGA"
 

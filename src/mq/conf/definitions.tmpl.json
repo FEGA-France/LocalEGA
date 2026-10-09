@@ -144,7 +144,7 @@
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
 	  "destination":"to_fega",
-	  "routing_key":"files.inbox"},
+	  "routing_key":"files.inbox.*"},
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
 	  "destination":"to_fega",

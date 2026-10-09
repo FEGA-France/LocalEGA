@@ -1,6 +1,6 @@
 # LocalEGA-inbox
 
-OpenSSH dropbox, with RabbitMQ notifications for file system events.
+OpenSSH dropbox.
 
 Build the docker image (passing the current user/group, for access permissions), with:
 
