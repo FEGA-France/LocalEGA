@@ -22,6 +22,8 @@ image-ingester:
 	$(MAKE) -C ../../src/ingestion/ingester latest ARGS=$(ARGS)
 image-archiver:
 	$(MAKE) -C ../../src/ingestion/archiver latest ARGS=$(ARGS)
+image-digester:
+	$(MAKE) -C ../../src/ingestion/digester latest ARGS=$(ARGS)
 image-mq:
 	$(MAKE) -C ../../src/mq latest ARGS=$(ARGS)
 image-tre:
@@ -31,7 +33,7 @@ image-s3:
 	$(MAKE) -C ../../src/s3 latest ARGS=$(ARGS)
 
 
-images: image-dispatcher image-ingester image-archiver
+images: image-dispatcher image-ingester image-archiver image-digester
 images: image-inbox image-vault-db image-mq
 images: image-tre
 

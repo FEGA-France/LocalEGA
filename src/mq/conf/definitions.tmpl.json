@@ -80,6 +80,12 @@
 	     "x-queue-type": "classic"}
 	},
 
+	{"name": "digest", "vhost": "/", "durable": true, "auto_delete": false,
+	 "arguments":{
+	     "x-dead-letter-exchange":"lega.dead",
+	     "x-queue-type": "classic"}
+	},
+
 	{"name": "vault.db", "vhost": "/", "durable": true, "auto_delete": false,
 	 "arguments":{
 	     "x-dead-letter-exchange":"lega.dead",
@@ -131,6 +137,10 @@
 	 "type":"x-consistent-hash", "arguments":{"hash-property": "correlation_id"}}
     ], 
     "bindings": [
+
+	{ "source":"amq.topic", "vhost": "/", "destination_type":"queue", "arguments":{},
+	  "destination":"digest",
+	  "routing_key":"inbox.digest"},
 
 	{ "source":"lega", "vhost": "/", "destination_type":"queue", "arguments":{},
 	  "destination":"to_fega",

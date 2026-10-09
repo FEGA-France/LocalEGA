@@ -72,7 +72,6 @@ services:
       - internal
     command: [ "/etc/ega/lega.ini" ]
 
-
   ingester-1:
     depends_on:
       mq:
@@ -149,6 +148,44 @@ services:
     hostname: archiver-4
     container_name: lega-archiver-4
     command: ["/etc/ega/lega.ini", "archiver-4"]
+
+  digester-1:
+    depends_on:
+      mq:
+        condition: service_healthy
+        restart: true
+    image: lega/digester:latest
+    networks:
+      - internal # to make it contact mq without routing
+    volumes:
+      - ./confs/digester.ini:/etc/ega/lega.ini:ro
+      - ./confs/logger.json:/etc/ega/logger.json:ro
+      - inbox:/ega/data
+      - ../../src/ingestion/digester/digester:/var/src/digester
+    hostname: digester-1
+    container_name: lega-digester-1
+    # command: ["/etc/ega/lega.ini", "digester-1"]
+    entrypoint: ['/bin/sleep']
+    command: '365d'
+
+  digest-2:
+    extends:
+      service: digester-1
+    hostname: digester-2
+    container_name: lega-digester-2
+    command: ["/etc/ega/lega.ini", "digester-2"]
+  digester-3:
+    extends:
+      service: digester-1
+    hostname: digester-3
+    container_name: lega-digester-3
+    command: ["/etc/ega/lega.ini", "digester-3"]
+  digester-4:
+    extends:
+      service: digester-1
+    hostname: digester-4
+    container_name: lega-digester-4
+    command: ["/etc/ega/lega.ini", "digester-4"]
 
 
   vault-db:
