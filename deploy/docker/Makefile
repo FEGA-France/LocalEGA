@@ -1,10 +1,11 @@
 SHELL := /bin/bash
 ARGS = 
 
-all: images db
+all: images
 
 DB_DATA_VOLUME=lega-vault-db
 VAULT_DATA_VOLUME=lega-vault
+#S3_DATA_VOLUME=s3-data
 
 DC=docker compose
 
@@ -12,8 +13,6 @@ DC=docker compose
 ## Build docker images
 #############################
 
-image-inbox:
-	$(MAKE) -C ../../src/inbox latest ARGS=$(ARGS)
 image-vault-db:
 	$(MAKE) -C ../../src/vault-db latest ARGS=$(ARGS) PG_SU_PASSWORD=fake
 image-dispatcher:
@@ -22,8 +21,6 @@ image-ingester:
 	$(MAKE) -C ../../src/ingestion/ingester latest ARGS=$(ARGS)
 image-archiver:
 	$(MAKE) -C ../../src/ingestion/archiver latest ARGS=$(ARGS)
-image-digester:
-	$(MAKE) -C ../../src/ingestion/digester latest ARGS=$(ARGS)
 image-mq:
 	$(MAKE) -C ../../src/mq latest ARGS=$(ARGS)
 image-tre:
@@ -33,10 +30,10 @@ image-s3:
 	$(MAKE) -C ../../src/s3 latest ARGS=$(ARGS)
 
 
-images: image-dispatcher image-ingester image-archiver image-digester
-images: image-inbox image-vault-db image-mq
+images: image-dispatcher image-ingester image-archiver
+images: image-vault-db image-mq
 images: image-tre
-
+images: image-s3
 
 
 #############################
@@ -77,16 +74,17 @@ setup-db:
 wait-db:
 	@sleep 2
 
-.PHONY: $(DB_DATA_VOLUME) $(VAULT_DATA_VOLUME)
-$(DB_DATA_VOLUME):
+.PHONY: $(DB_DATA_VOLUME) $(VAULT_DATA_VOLUME) $(S3_DATA_VOLUME)
+$(DB_DATA_VOLUME) $(VAULT_DATA_VOLUME) $(S3_DATA_VOLUME):
 	@docker volume create $@
 rm-db:
 	-docker volume rm $(DB_DATA_VOLUME)
 
-$(VAULT_DATA_VOLUME):
-	@docker volume create $@
 rm-vault-volume:
 	-docker volume rm $(VAULT_DATA_VOLUME)
+
+rm-s3-volume:
+	-docker volume rm $(S2_DATA_VOLUME)
 
 logs-db:
 	-$(DC) logs -f vault-db
@@ -118,7 +116,7 @@ ps:
 	@$(DC) ps
 psa:
 	@$(DC) ps -a
-up: $(VAULT_DATA_VOLUME)
+up: $(VAULT_DATA_VOLUME) $(S3_DATA_VOLUME)
 	@$(DC) up -d
 down:
 	@$(DC) down -v

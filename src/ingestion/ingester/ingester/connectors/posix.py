@@ -103,6 +103,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from . import FileBase
 
@@ -155,6 +156,13 @@ class _RingBase(ABC):
             self, fd: int, buffer: bytearray, size: int, offset: int,
             fut: asyncio.Future,
     ) -> None: ...
+
+    @abstractmethod
+    def submit_write(
+            self, f, buffer: memoryview | bytearray | bytes, # size: int, # offset: int,
+            fut: asyncio.Future,
+    ) -> None: ...
+
 
 # ---------------------------------------------------------------------------
 # Backend A — io_uring  (Linux ≥ 5.1, liburing installed)
@@ -217,6 +225,21 @@ class _Ring(_RingBase):
         self.pending[token] = fut
         sqe = _liburing.io_uring_get_sqe(self.ring)
         _liburing.io_uring_prep_read(sqe, fd, iov.iov_base, size, offset)
+        _liburing.io_uring_sqe_set_data64(sqe, token)
+        _liburing.trap_error(_liburing.io_uring_submit(self.ring))
+
+    def submit_write(
+            self, fd: int, data: bytes | bytearray | memoryview, size: int,
+            offset: int, fut: asyncio.Future,
+    ) -> None:
+        if not self.ready:
+            raise RuntimeError('First set up the ring')
+        buf = data if isinstance(data, (bytearray, memoryview)) else bytearray(data)
+        iov   = _liburing.iovec(buf)
+        token = self._next_token()
+        self.pending[token] = fut
+        sqe = _liburing.io_uring_get_sqe(self.ring)
+        _liburing.io_uring_prep_write(sqe, fd, iov.iov_base, size, offset)
         _liburing.io_uring_sqe_set_data64(sqe, token)
         _liburing.trap_error(_liburing.io_uring_submit(self.ring))
         
@@ -290,6 +313,17 @@ class _RingFallback(_RingBase):
             raise RuntimeError('First set up the ring')
         self._chain(self.loop.run_in_executor(self.pool, os.preadv, fd, [buffer], offset), fut)
 
+    def submit_write(
+            self,
+            fd: int,
+            data: bytes | bytearray | memoryview,
+            offset: int,
+            fut: asyncio.Future,
+    ) -> None:
+        if not self.pool:
+            raise RuntimeError('First set up the ring')
+        self._chain(self.loop.run_in_executor(self.pool, os.pwritev, fd, [data], offset), fut)
+
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -322,8 +356,57 @@ LOG.debug('Posix files, using backend: %s', _BACKEND)
 # Implementation
 # ---------------------------------------------------------------------------
 
+def os_flags(mode: str) -> int:
+    m = set(mode)
+    flags: int = 0
+    rwa = False
+    readable = False
+    writable = False
+    if "x" in m:
+        if rwa:
+            raise ValueError('Bad flags')
+        flags |= os.O_EXCL | os.O_CREAT
+        rwa = True
+        writable = True
+    if "r" in m:
+        if rwa:
+            raise ValueError('Bad flags')
+        rwa = True
+        readable = True
+    if "w" in m:
+        if rwa:
+            raise ValueError('Bad flags')
+        flags |= os.O_CREAT | os.O_TRUNC
+        rwa = True
+        writable = True
+    if "a" in m:
+        if rwa:
+            raise ValueError('Bad flags')
+        flags |= os.O_CREAT | os.O_APPEND
+        rwa = True
+        writable = True
+    if "+" in m:
+        readable = True
+        writable = True
+    if "e" in m:
+        flags |= os.O_EXCL
+    if "n" in m:
+        flags |= os.O_NONBLOCK
+
+    if not rwa:
+        raise ValueError('Bad flags: should have at least "r", "w" or "a"')
+
+    if readable and writable:
+        flags |= os.O_RDWR
+    elif readable:
+        flags |= os.O_RDONLY
+    elif writable:
+        flags |= os.O_WRONLY
+
+    return flags
+
 class PosixFile(FileBase):
-    """Local file, read through the ring (io_uring or executor)."""
+    """Local file, read/write through the ring (io_uring or executor)."""
 
     # CHUNK_SIZE: int = 1 << 23  # 8MB, default
 
@@ -346,8 +429,9 @@ class PosixFile(FileBase):
         self.fd = -1
         self.offset = 0
         self.bytes_read = 0
+        self.bytes_written = 0
         self.size = 0
-        LOG.debug('Created PosixFile %s', id(self))
+        # LOG.debug('Created PosixFile %s', id(self))
 
     @classmethod
     def build_from(cls, other, rootdir = None):
@@ -355,12 +439,12 @@ class PosixFile(FileBase):
                 ring = other.ring,
                 loop = other.loop)
         c.shared_with = other
-        LOG.debug('Created PosixFile %s from %s', id(c), id(other))
+        # LOG.debug('Created PosixFile %s from %s', id(c), id(other))
         return c
 
 
     def __enter__(self):
-        LOG.debug('Entering PosixFile: %s', id(self))
+        # LOG.debug('Entering PosixFile: %s', id(self))
         try:
             if self.ring and self.shared_with is None:
                 self.ring.setup(self.loop)
@@ -379,7 +463,7 @@ class PosixFile(FileBase):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        LOG.debug('Closing PosixFile: %s', id(self))
+        # LOG.debug('Closing PosixFile: %s', id(self))
         errors = []
         try:
             if self.ring and self.shared_with is None:
@@ -400,27 +484,38 @@ class PosixFile(FileBase):
 
 
     @asynccontextmanager
-    async def open(self, path: str) -> None:
+    async def open(self,
+                   path,
+                   flags: str,
+                   mkdirs=False
+                   ) -> None:
         try:
             if self.dir_fd is not None:
                 path = path.lstrip('/')
-            LOG.debug('Opening PosixFile [%s]: %s', id(self), path)
-            self.fd = os.open(path, os.O_RDONLY, dir_fd=self.dir_fd) # mode & ~umask
+
+            if mkdirs:
+                if self.dir_fd is not None:
+                    p = Path(self.rootdir) / path
+                else:
+                    p = Path(path)
+                p.parent.mkdir(parents=True, exist_ok=True)
+
+            # LOG.debug('Opening PosixFile [%s]: %s', id(self), path)
+            self.path = path
+            self.flags = os_flags(flags)
+            self.fd = os.open(path, self.flags, dir_fd=self.dir_fd) # mode & ~umask
 
             # fetch size
             self.size = os.fstat(self.fd).st_size
-
+            
         except Exception as e:
             LOG.error('Error opening %s: %r', path, e)
             raise e
 
         try:
             yield self
-        except Exception as e:
-            LOG.error('Error: %r', e)
-            raise
         finally: # Closing
-            LOG.debug('Closing PosixFile: %s', id(self))
+            # LOG.debug('Closing PosixFile: %s', id(self))
             try:
                 if self.fd >= 0:
                     fd, self.fd = self.fd, -1
@@ -430,6 +525,13 @@ class PosixFile(FileBase):
                 raise ee 
 
 
+    async def read(self, size: int) -> bytes:
+        """Reads n bytes from the current position/offset."""
+        raise NotImplementedError("Use readinto")
+
+    def tell(self) -> int:
+        raise NotImplementedError()
+        
 
     async def readinto(self, buffer: bytearray | memoryview) -> int:
         """
@@ -452,3 +554,97 @@ class PosixFile(FileBase):
         self.bytes_read += n
         self.offset += n
         return n
+
+    async def write(self, data: bytes | bytearray | memoryview) -> int:
+        if self.fd < 0:
+            raise RuntimeError("Not open — use as a context manager")
+        n = len(data)
+        # LOG.debug('Submit write: size: %s | offset: %s', n, self.dst_offset)
+        fut = self.loop.create_future() # asyncio.Future returning None
+        self.ring.submit_write(self.fd, data, self.offset, fut)
+        w = await fut
+        self.offset += w
+        self.bytes_written += w
+        return w
+
+    async def unlink(self, path) -> None:
+        if self.dir_fd is not None:
+            path = path.lstrip('/')
+        os.unlink(path, dir_fd=self.dir_fd)
+        # If it raises a NotImplementedError,
+        # dir_fd might not be implemented on this platform
+        # so we can concatenate and call os.unlink(rootdir/path)
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+
+    import sys
+
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <conf> <src> <dst>")
+        sys.exit(1)
+
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(message)s')
+
+    from contextlib import AbstractAsyncContextManager
+    from . import ProgressBar
+
+    async def main(src, dst):
+
+        rctx = PosixFile()
+        wctx = PosixFile.build_from(rctx,
+                              rootdir = 'tests')
+        
+        os.umask(0o022)
+        try:
+            os.mkdir('tests')
+        except FileExistsError:
+            pass
+
+        with rctx, wctx:
+            rfile = rctx.open(src, 'r')
+            wfile = wctx.open(dst, 'w')
+
+            LOG.debug('Type of rfile: %s | async context: %s', type(rfile), isinstance(rfile, AbstractAsyncContextManager))
+            LOG.debug('Type of wfile: %s | async context: %s', type(wfile), isinstance(wfile, AbstractAsyncContextManager))
+
+            async with rfile as r, wfile as w:
+
+                LOG.debug("\tReader: %s", id(r))
+                LOG.debug("\tWriter: %s", id(w))
+
+                LOG.debug("Filesize: %s bytes", r.size)
+                tracer = ProgressBar("Copying", r.size)
+
+                #chunksize = max(r.CHUNK_SIZE, w.CHUNK_SIZE)
+                chunksize = min(r.CHUNK_SIZE, w.CHUNK_SIZE)
+                LOG.debug("Chunk size: %s bytes", chunksize)
+                buffer = bytearray(chunksize)
+
+                while True:
+                    n = await r.readinto(buffer)
+                    if n == 0:
+                        break
+                    await w.write(buffer[:n])
+                    tracer.update(n)
+                tracer.close()
+                LOG.debug("Copied %s bytes / %s bytes", r.bytes_read, w.bytes_written)
+                    
+                if r.size != w.bytes_written:
+                    LOG.error("\tMissing bytes from: %s", src)
+
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    #loop.set_debug(True)
+
+    try:
+        loop.run_until_complete(main(sys.argv[1], sys.argv[2]))
+    except KeyboardInterrupt as e:
+        print('')
+        LOG.warning('Cancelled')
+        sys.exit(1)

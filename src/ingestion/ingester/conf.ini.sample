@@ -7,18 +7,18 @@ service_key = c4gh_service_seckey
 # 8 MB
 bufsize = 8388608
 
-# 64 MB
-#bufsize = 67108864
-
 skip_reencryption = true
 
-[inbox]
-# %s will be the username
-location = /ega/inbox/%s
+source = inbox.posix
+destination = staging.posix
 
-[staging]
-# %s will be the username
-location = /ega/staging/%s
+[inbox.http]
+type = posix
+rootdir = /ega/inbox
+
+[staging.posix]
+type = posix
+rootdir = /ega/staging
 
 [broker]
 connection = amqp://admin:__CHANGEME__@mq:5672/%2F

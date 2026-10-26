@@ -4,7 +4,6 @@ It also sets up the logging.
 """
 import logging
 import os
-import sys
 import configparser
 import warnings
 from pathlib import Path
@@ -21,16 +20,12 @@ class Configuration(configparser.RawConfigParser):
     __slots__ = ('conf_file',
                  '_mq',
                  '_mq_connection_name',
-                 '_db',
-                 '_service_pubkey'
                  )
 
     def __init__(self, conf_file, mq_connection_name):
         self.conf_file = conf_file
         self._mq = None
         self._mq_connection_name = mq_connection_name
-        self._db = None
-        self._service_pubkey = None
         # Load the configuration settings
         super().__init__(self,
                          delimiters=('=', ':'),
@@ -73,3 +68,14 @@ class Configuration(configparser.RawConfigParser):
             self._mq = amqp.MQConnection(self._mq_connection_name,
                                          self, conf_section='broker')
         return self._mq
+
+    def select_section(self, v):
+        try:
+            section = self.get('DEFAULT', v)
+            LOG.debug('Selection %s: %s', v, section)
+            d = self[section] # fail if missing
+            # assert d['type'] in ('sftp', 's3', 'posix'), "Unknown source type"
+            return d
+        except Exception as e:
+            LOG.error('conf error: %r', e)
+            raise

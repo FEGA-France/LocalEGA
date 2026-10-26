@@ -11,6 +11,7 @@ import time
 
 from . import ingest, conf, exceptions, logger
 from .message import FEGAMessage
+from .utils import format_time
 
 LOG = logging.getLogger(__name__)
 
@@ -18,27 +19,25 @@ def mq_report(func):
     async def wrapper(config, message):
         try:
             return await func(config, message)
-        except Exception as e:
+        except exceptions.FromUser as e:
+            LOG.error('Publish user error: %r', e)
             if e.__cause__:
                 LOG.error('Error Cause: %r', e.__cause__)
-
-            if isinstance(e, exceptions.FromUser):
-                LOG.error('Publish user error: %r', e)
-                routing_key = 'error'
-                error = dict(message.parsed) # copy
-                error['type'] = 'ingestion.error' # processed by dispatcher
-                error['reason'] = str(e)
-                # must contain "internal"
-            else:
-                LOG.error('Publish system error: %r', e)
-                routing_key = 'error.system'
-                error = {
-                    'message': message.parsed,
-                    'reason': traceback.format_exception(e),
-                }
-
-            await config.mq.publish(error, routing_key,
-                                    correlation_id=message.correlation_id)
+            error = dict(message.parsed) # copy
+            error['type'] = 'ingestion.error' # processed by dispatcher
+            error['reason'] = str(e)
+            # Note: must contain "internal"
+            await config.mq.publish(error, 'error', correlation_id=message.correlation_id)
+            raise
+        except Exception as e:
+            LOG.error('Publish system error: %r', e)
+            if e.__cause__:
+                LOG.error('Error Cause: %r', e.__cause__)
+            error = {
+                'message': message.parsed,
+                'reason': traceback.format_exception(e),
+            }
+            await config.mq.publish(error, 'error.system', correlation_id=message.correlation_id)
             raise
     return wrapper
 
@@ -50,11 +49,11 @@ def ack_nack_on_exception(on_message):
             start_time = time.time()
             await on_message(config, message)
             elapsed_time = time.time() - start_time
-            LOG.info('Acking message %s | job time: %s', message, ingest.format_time(elapsed_time))
+            LOG.info('Acking message %s | job time: %s', message, format_time(elapsed_time))
             await message.channel.basic_ack(message.delivery.delivery_tag)
         except Exception as e:
             elapsed_time = time.time() - start_time
-            LOG.info('Nacking message %s | job time: %s', message, ingest.format_time(elapsed_time))
+            LOG.info('Nacking message %s | job time: %s', message, format_time(elapsed_time))
             await message.channel.basic_nack(message.delivery.delivery_tag, requeue=False)
     return wrapper
 
@@ -67,26 +66,11 @@ async def work(config, message):
 
     if message.job_type == 'ingest':
         await ingest.execute(config, message)
+        # from . import testing
+        # await testing.execute(config, message)
 
     elif message.job_type == 'cancel':
-
-        data = message.parsed
-        filepath = data['filepath']
-        username = data['user']
-        LOG.info('Cancelling [%s]%s', username, filepath)
-        staging_prefix = config.get('staging', 'location', raw=True)
-        staging_path = os.path.join(staging_prefix % username, filepath.strip('/') )
-        LOG.debug('Staging path: %s', staging_path)
-        try:
-            os.unlink(staging_path)
-        except OSError:
-            pass
-        
-        # Notify job done
-        data['type'] = 'cancel.completed'
-        await config.mq.publish(data, 'cancel.completed',
-                                correlation_id=message.correlation_id)
-
+        await cancel.execute(config, message)
 
     else:
         raise Exception(f'Invalid operation: {message.job_type} for message: {message.content}')

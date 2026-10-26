@@ -1,29 +1,12 @@
 [DEFAULT]
 logger = /etc/ega/logger.json
 
-# 8 MB
-bufsize = 8388608
-
-# 64 MB
-#bufsize = 67108864
+source = staging.posix
+destination = vault.s3
 
 skip_backup = False
+backup = backup.posix
 
-[staging]
-# %s will be the username
-location = /ega/staging/%s
-
-[data]
-location = /ega/data
-
-[tools]
-location = /ega/tools
-
-[vault]
-location = /ega/vault
-
-[backup]
-location = /ega/backup
 
 [broker]
 connection = amqp://admin:__CHANGE-ME__@mq:5672/%2F
@@ -31,3 +14,45 @@ connection = amqp://admin:__CHANGE-ME__@mq:5672/%2F
 exchange = lega
 queue = archive
 qos = 10
+
+[staging.posix]
+type = posix
+
+# Where the files are.
+# We'll append <username>/path/to/file
+rootdir = /ega/staging
+
+
+[vault.posix]
+type = posix
+rootdir = /ega/vault
+
+[vault.s3]
+type = s3
+endpoint = http://lega-vault:9000
+bucket = vault
+access_key = ...
+secret_key = ...
+
+
+[backup.posix]
+type = posix
+rootdir = /ega/backup
+
+[backup.s3]
+type = s3
+endpoint = http://lega-backup:9000
+bucket = backup
+access_key = ...
+secret_key = ...
+
+
+# [data]
+# type = posix
+# rootdir = /ega/data
+
+# [tools]
+# type = posix
+# rootdir = /ega/tools
+
+

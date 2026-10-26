@@ -16,7 +16,7 @@ import os
 import configparser
 import warnings
 import stat
-from logging.config import fileConfig, dictConfig
+from logging.config import dictConfig
 from pathlib import Path
 import json
 
@@ -108,7 +108,6 @@ class Configuration(configparser.RawConfigParser):
     __slots__ = ('conf_file',
                  '_mq',
                  '_mq_connection_name',
-                 '_db',
                  '_service_key',
                  '_master_pubkey',
                  )
@@ -117,7 +116,6 @@ class Configuration(configparser.RawConfigParser):
         self.conf_file = conf_file
         self._mq = None
         self._mq_connection_name = mq_connection_name
-        self._db = None
         self._service_key = None
         self._master_pubkey = None
         # Load the configuration settings
@@ -159,13 +157,24 @@ class Configuration(configparser.RawConfigParser):
         """Show the configuration files."""
         return f'<{self.__class__.__name__}: {self.conf_file}>'
 
+
+    def select_section(self, v):
+        try:
+            section = self.get('DEFAULT', v)
+            LOG.debug('Selection %s: %s', v, section)
+            d = self[section] # fail if missing
+            # assert d['type'] in ('sftp', 's3', 'posix'), "Unknown source type"
+            return d
+        except Exception as e:
+            LOG.error('conf error: %r', e)
+            raise
+
     @property
     def mq(self):
         if self._mq is None:
             self._mq = amqp.MQConnection(self._mq_connection_name,
                                          self, conf_section='broker')
         return self._mq
-
 
     # Loading the key from its storage (be it from file, or from a remote location)
     # the key_config section in the config file should describe how
@@ -187,3 +196,4 @@ class Configuration(configparser.RawConfigParser):
             k = getattr(key, self.get(key_section, 'loader_class'))(self, key_section)
             self._master_pubkey = k.public()
         return self._master_pubkey
+
