@@ -32,8 +32,7 @@ image-s3:
 
 images: image-dispatcher image-ingester image-archiver
 images: image-vault-db image-mq
-images: image-tre
-images: image-s3
+# images: image-tre
 
 
 #############################
