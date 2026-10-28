@@ -65,18 +65,17 @@ You should get something like:
 
 ```
 NAME              IMAGE                    COMMAND                  SERVICE      CREATED          STATUS                            PORTS
-lega-archiver-1   lega/archiver:latest     "python -m code /etc…"   archiver-1   14 seconds ago   Up 2 seconds
-lega-archiver-2   lega/archiver:latest     "python -m code /etc…"   archiver-2   14 seconds ago   Up 2 seconds
-lega-archiver-3   lega/archiver:latest     "python -m code /etc…"   archiver-3   14 seconds ago   Up 2 seconds
-lega-archiver-4   lega/archiver:latest     "python -m code /etc…"   archiver-4   14 seconds ago   Up 2 seconds
-lega-dispatcher   lega/dispatcher:latest   "python -m code /etc…"   dispatcher   14 seconds ago   Up 2 seconds
-lega-inbox        lega/inbox:latest        "/usr/local/bin/entr…"   inbox        14 seconds ago   Up 13 seconds (healthy)           0.0.0.0:15676->15672/tcp, [::]:15676->15672/tcp
+lega-mq           lega/mq                  "/usr/local/bin/ega-…"   mq           14 seconds ago   Up 7 seconds (healthy)            0.0.0.0:5672->5672/tcp, [::]:5672->5672/tcp, 0.0.0.0:15672->15672/tcp, [::]:15672->15672/tcp
+lega-vault-db     lega/vault-db:latest     "postgres -c config_…"   vault-db     14 seconds ago   Up 2 seconds (health: starting)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
 lega-ingester-1   lega/ingester:latest     "python -m code /etc…"   ingester-1   14 seconds ago   Up 2 seconds
 lega-ingester-2   lega/ingester:latest     "python -m code /etc…"   ingester-2   14 seconds ago   Up 2 seconds
 lega-ingester-3   lega/ingester:latest     "python -m code /etc…"   ingester-3   14 seconds ago   Up 2 seconds
 lega-ingester-4   lega/ingester:latest     "python -m code /etc…"   ingester-4   14 seconds ago   Up 2 seconds
-lega-mq           lega/mq                  "/usr/local/bin/ega-…"   mq           14 seconds ago   Up 7 seconds (healthy)            0.0.0.0:5672->5672/tcp, [::]:5672->5672/tcp, 0.0.0.0:15672->15672/tcp, [::]:15672->15672/tcp
-lega-vault-db     lega/vault-db:latest     "postgres -c config_…"   vault-db     14 seconds ago   Up 2 seconds (health: starting)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+lega-dispatcher   lega/dispatcher:latest   "python -m code /etc…"   dispatcher   14 seconds ago   Up 2 seconds
+lega-archiver-1   lega/archiver:latest     "python -m code /etc…"   archiver-1   14 seconds ago   Up 2 seconds
+lega-archiver-2   lega/archiver:latest     "python -m code /etc…"   archiver-2   14 seconds ago   Up 2 seconds
+lega-archiver-3   lega/archiver:latest     "python -m code /etc…"   archiver-3   14 seconds ago   Up 2 seconds
+lega-archiver-4   lega/archiver:latest     "python -m code /etc…"   archiver-4   14 seconds ago   Up 2 seconds
 ```
 You can follow along with
 
@@ -111,17 +110,9 @@ The code is just ready to ship where needed.
 
 Get the instructions to run locally the France EGA (and its fake Central EGA service) from [https://github.com/FEGA-France/RelayEGA](https://github.com/FEGA-France/RelayEGA).
 
-The message broker `mq` tries to connect to the Central EGA broker itself, or to the France EGA one. It'll keep as long as it can, so expect to see connection errors in the `mq` logs until you boot the connected broker.
+The message broker `mq` tries to connect to the Central EGA broker itself, or to the France EGA one. It'll keep trying until it succeeds, so expect to see connection errors in the `mq` logs until you boot the connected broker.
 
-The inbox does not connect to NSS from FranceEGA/CentralEGA, it has its own internal system-user.
-
-In the FEGA France repo/directory, we created an SSH-keypair and
-inject the public part in the `authrized_keys` of this user, in the
-LEGA-inbox container. That way, FEGA-inbox keeps the private part and can connect to LEGA-inbox.
-
-	# Go to the FEGA France repo/directory
-	cd [fega-france]/deploy/docker
-	make authorized-keys
-
+The ingester will stream data from the FEGA-inbox, if configured as such.  
+See `confs/ingester.ini`: it'll connect via HTTP to http://user:password@fega-inbox:8000
 
 If you already have credentials for a test environment from FranceEGA/CentralEGA, you can update the docker-compose environment variable for the `mq` containers.
