@@ -169,37 +169,3 @@ services:
       retries: 5
       start_period: 30s
       timeout: 10s
-
-
-  # s3:
-  #   depends_on:
-  #     mq:
-  #       condition: service_healthy
-  #       restart: true
-  #   image: lega/s3:latest
-  #   container_name: lega-s3
-  #   ports:
-  #     - "9000:9000"  # API
-  #     - "9001:9001"  # Console
-  #   environment:
-  #     # RUSTFS_ROOT_USER: admin
-  #     # RUSTFS_ROOT_PASSWORD: super-secret
-
-  #     RUSTFS_ACCESS_KEY: "lega"
-  #     RUSTFS_SECRET_KEY: "zzEH5pUK0gkrec1g9axPgZsKLGVXutVrarCoKm7t"
-
-  #     RUSTFS_ADDRESS: ":9000"
-  #     RUSTFS_CONSOLE_ADDRESS: ":9001"
-  #     RUSTFS_CONSOLE_ENABLE: true
-  #     RUSTFS_OBS_LOGGER_LEVEL: "error"
-
-  #   volumes:
-  #     - s3-data:/data
-  #   networks:
-  #     - fega-external # so it sees fega-mq
-  #     - internal
-  #   healthcheck:
-  #     test: ["CMD", "rc", "ready", "local"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 5
