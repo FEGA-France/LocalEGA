@@ -23,7 +23,7 @@
             "propagate": true
         },
         "crypt4gh": {
-            "level": "DEBUG",
+            "level": "CRITICAL",
             "handlers": [ "console" ]
         },
         "pamqp": {

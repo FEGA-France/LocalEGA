@@ -49,18 +49,19 @@ executor fallback architecture
 
 Usage (identical regardless of backend)
 -----------------------------------------
-   buffer = bytearray(64 * 1024)
 
-   async with PosixFile("src.bin") as reader,
-              PosixFile("src.bin") as writer:
+   rctx = PosixStream()
+   wctx = PosixStream()
+
+   async with rctx.open("src.bin", "r") as reader,
+              rctx.open("dst.bin", "w") as writer:
+       buffer = bytearray(min(reader.CHUNK_SIZE, writer.CHUNK_SIZE))
        while True:
            n = await reader.readinto(buffer)
            if n == 0:
                break
            process(buffer[:n])           # transform in-place
            await writer.write(buffer[:n])
-
-   print(BACKEND)        # 'io_uring' or 'executor'
 
 Why not O_DIRECT?
 -----------------
@@ -105,7 +106,7 @@ from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from . import FileBase
+from . import FileStream
 
 LOG = logging.getLogger(__name__)
 
@@ -144,9 +145,10 @@ except Exception as exc:
 class _RingBase(ABC):
 
     ring: None
+    ready: bool = False
 
     @abstractmethod
-    def setup(self, loop: asyncio.AbstractEventLoop) -> None: ...
+    def setup(self) -> None: ...
 
     @abstractmethod
     def teardown(self) -> None: ...
@@ -176,37 +178,45 @@ class _Ring(_RingBase):
 
     QUEUE_DEPTH = 8
 
-    def __init__(self):
+    def __init__(self, loop):
         self.ring = _lu.io_uring()
         self.efd  = -1
         self.pending: dict[int, asyncio.Future] = {}
         self.token_counter = 0
-        self.loop = None
+        assert loop, "Invalid async loop"
+        self.loop = loop
         self.ready = False
 
-    def setup(self, loop):
+    def setup(self):
+        if self.ready:
+            return
         LOG.debug('Creating io_uring queue')
         _liburing.trap_error(_liburing.io_uring_queue_init(self.QUEUE_DEPTH, self.ring, 0))
       
         self.efd = os.eventfd(0, os.EFD_NONBLOCK)
         _liburing.trap_error(_liburing.io_uring_register_eventfd(self.ring, self.efd))
 
-        loop.add_reader(self.efd, self._on_cqe_ready)
-        self.loop = loop
+        self.loop.add_reader(self.efd, self._on_cqe_ready)
         self.ready = True
 
     def teardown(self) -> None:
+        if not self.ready:
+            return
         LOG.debug('Tearing down io_uring queue')
-        if self.loop is not None:
-            try:
-                self.loop.remove_reader(self.efd)
-            except Exception:
-                pass
-        if self.efd >= 0:
-            os.close(self.efd)
-            self.efd = -1
-        _liburing.io_uring_queue_exit(self.ring)
-        self.ready = Flase
+        try:
+            self.loop.remove_reader(self.efd)
+        except Exception:
+            pass
+        efd, self.efd = self.efd, -1
+        if efd >= 0:
+            os.close(efd)
+        _liburing.io_uring_queue_exit(self.ring) # will io_uring_unregister_eventfd
+        self.ready = False
+        self.token_counter = 0
+        # Cancel the pending futures
+        for fut in self.pending.values():
+            fut.cancel() 
+        self.pending = dict()
 
     # ------------------------------------------------------------------
 
@@ -282,23 +292,31 @@ class _RingFallback(_RingBase):
     submitted as an SQE.
     """
 
-    def __init__(self):
+    def __init__(self, loop, max_workers=2, prefix="async_posix"):
         self.pool = None
-        self.loop = None
-
-    def setup(self, loop, max_workers=2, prefix="async_posix"):
-        LOG.debug('Creating ThreadPool: worker %s | prefix: %s', max_workers, prefix)
-        from concurrent.futures import ThreadPoolExecutor
+        assert loop, "Invalid async loop"
         self.loop = loop
-        self.pool = ThreadPoolExecutor(max_workers=max_workers,
-                                       thread_name_prefix=prefix)
+        self.max_workers = max_workers
+        self.prefix = prefix
+        self.ready = False
 
+    def setup(self):
+        if self.ready:
+            return
+        LOG.debug('Creating ThreadPool: worker %s | prefix: %s', self.max_workers, self.prefix)
+        from concurrent.futures import ThreadPoolExecutor
+        self.pool = ThreadPoolExecutor(max_workers=self.max_workers,
+                                       thread_name_prefix=self.prefix)
+        self.ready = True
 
     def teardown(self):
+        if not self.ready:
+            return
         LOG.debug('Tearing down ThreadPool')
         if self.pool:
             self.pool.shutdown(wait=False)
             self.pool = None
+        self.ready = False
 
     # ------------------------------------------------------------------
 
@@ -397,7 +415,7 @@ def os_flags(mode: str) -> int:
         raise ValueError('Bad flags: should have at least "r", "w" or "a"')
 
     if readable and writable:
-        flags |= os.O_RDWR
+        flags |= os.O_RDWR # or not supported ?
     elif readable:
         flags |= os.O_RDONLY
     elif writable:
@@ -405,106 +423,67 @@ def os_flags(mode: str) -> int:
 
     return flags
 
-class PosixFile(FileBase):
+class PosixStream(FileStream):
     """Local file, read/write through the ring (io_uring or executor)."""
 
     # CHUNK_SIZE: int = 1 << 23  # 8MB, default
 
     def __init__(self,
                  rootdir = None,
-                 ring: _RingBase = None,
+                 ring = None,
                  loop: asyncio.AbstractEventLoop = None) -> None:
 
         self.loop  = loop or asyncio.get_running_loop()
-        self.ring: _RingBase = ring or _Ring()  # io_uring or fallback, decided above
+        self.ring: _RingBase = ring or _Ring(self.loop)  # io_uring or fallback, decided above
 
-        if rootdir and not os.path.isdir(rootdir):
-            raise ValueError(f'Invalid rootdir: {rootdir}')
+        if rootdir:
+            if not os.path.isdir(rootdir):
+                raise ValueError(f'Invalid rootdir: {rootdir}')
+            rootdir = Path(rootdir)
 
         self.rootdir = rootdir
-        self.dir_fd = None
-        self.shared_with = None
 
         # After open
         self.fd = -1
         self.offset = 0
-        self.bytes_read = 0
-        self.bytes_written = 0
         self.size = 0
         # LOG.debug('Created PosixFile %s', id(self))
 
-    @classmethod
-    def build_from(cls, other, rootdir = None):
-        c = cls(rootdir = rootdir or other.rootdir,
-                ring = other.ring,
-                loop = other.loop)
-        c.shared_with = other
-        # LOG.debug('Created PosixFile %s from %s', id(c), id(other))
-        return c
+    def __str__(self):
+        return f'<PosixStream | rootdir:{self.rootdir}>' 
 
-
-    def __enter__(self):
-        # LOG.debug('Entering PosixFile: %s', id(self))
-        try:
-            if self.ring and self.shared_with is None:
-                self.ring.setup(self.loop)
-            if self.rootdir:
-                self.dir_fd = os.open(self.rootdir, os.O_DIRECTORY) # | os.O_PATH
-                # flags = os.O_RDONLY
-                # if getattr(os, 'O_PATH', None):
-                #     flags |= os.O_PATH
-                # self.dir_fd = os.open(self.rootdir, flags)
-        except Exception as e:
-            LOG.error('Error enter: %r', e)
-            if self.dir_fd is not None and self.dir_fd >= 0:
-                dir_fd, self.dir_fd = self.dir_fd, None
-                os.close(dir_fd)
-            raise
+    def __enter__(self) -> "PosixStream":
+        self.ring.setup()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        # LOG.debug('Closing PosixFile: %s', id(self))
-        errors = []
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        LOG.debug('__exit__: %s, %s, %s', exc_type, exc_val, exc_tb)
         try:
-            if self.ring and self.shared_with is None:
-                self.ring.teardown()
-                self.ring = None
-        except Exception as e:
-            errors.append(e)
-        try:
-            if self.dir_fd is not None and self.dir_fd >= 0:
-                dir_fd, self.dir_fd = self.dir_fd, None
-                os.close(dir_fd)
-        except Exception as e:
-            errors.append(e)
-
-        if errors and exc_type is None:
-            raise errors[0] # first one
+            self.ring.teardown()
+        except Exception as ee:
+            LOG.error('Error tearing down: %r', ee)
         return False
-
 
     @asynccontextmanager
     async def open(self,
                    path,
                    flags: str,
-                   mkdirs=False
-                   ) -> None:
+                   mkdirs: bool = False) -> None:
         try:
-            if self.dir_fd is not None:
-                path = path.lstrip('/')
+
+            if self.rootdir is not None:
+                path = self.rootdir / path.lstrip('/')
+            else:
+                path = Path(path)
 
             if mkdirs:
-                if self.dir_fd is not None:
-                    p = Path(self.rootdir) / path
-                else:
-                    p = Path(path)
-                p.parent.mkdir(parents=True, exist_ok=True)
+                path.parent.mkdir(parents=True, exist_ok=True)
 
-            # LOG.debug('Opening PosixFile [%s]: %s', id(self), path)
+            LOG.debug('Opening (%s) PosixFile: %s', flags, path)
             self.path = path
-            self.flags = os_flags(flags)
-            self.fd = os.open(path, self.flags, dir_fd=self.dir_fd) # mode & ~umask
+            self.fd = os.open(path, os_flags(flags)) # mode & ~umask
 
+            self.offset = 0
             # fetch size
             self.size = os.fstat(self.fd).st_size
             
@@ -529,10 +508,6 @@ class PosixFile(FileBase):
         """Reads n bytes from the current position/offset."""
         raise NotImplementedError("Use readinto")
 
-    def tell(self) -> int:
-        raise NotImplementedError()
-        
-
     async def readinto(self, buffer: bytearray | memoryview) -> int:
         """
         Read up to *size* bytes from the source file directly into *buffer*.
@@ -551,7 +526,6 @@ class PosixFile(FileBase):
         fut = self.loop.create_future()      # asyncio.Future returning an int
         self.ring.submit_read(self.fd, buffer, self.offset, fut)
         n = await fut
-        self.bytes_read += n
         self.offset += n
         return n
 
@@ -564,16 +538,15 @@ class PosixFile(FileBase):
         self.ring.submit_write(self.fd, data, self.offset, fut)
         w = await fut
         self.offset += w
-        self.bytes_written += w
         return w
 
     async def unlink(self, path) -> None:
-        if self.dir_fd is not None:
-            path = path.lstrip('/')
-        os.unlink(path, dir_fd=self.dir_fd)
-        # If it raises a NotImplementedError,
-        # dir_fd might not be implemented on this platform
-        # so we can concatenate and call os.unlink(rootdir/path)
+        if self.rootdir is not None:
+            path = self.rootdir / path.lstrip('/')
+        else:
+            path = Path(path)
+        os.unlink(path)
+
 
 # ---------------------------------------------------------------------------
 # Tests
@@ -595,47 +568,38 @@ if __name__ == "__main__":
 
     async def main(src, dst):
 
-        rctx = PosixFile()
-        wctx = PosixFile.build_from(rctx,
-                              rootdir = 'tests')
-        
         os.umask(0o022)
-        try:
-            os.mkdir('tests')
-        except FileExistsError:
-            pass
 
-        with rctx, wctx:
-            rfile = rctx.open(src, 'r')
-            wfile = wctx.open(dst, 'w')
+        rctx = PosixStream()
+        wctx = PosixStream(rootdir = 'tests')
+        
+        rfile = rctx.open(src, 'r')
+        wfile = wctx.open(dst, 'w')
 
-            LOG.debug('Type of rfile: %s | async context: %s', type(rfile), isinstance(rfile, AbstractAsyncContextManager))
-            LOG.debug('Type of wfile: %s | async context: %s', type(wfile), isinstance(wfile, AbstractAsyncContextManager))
+        async with rfile as r, wfile as w:
 
-            async with rfile as r, wfile as w:
+            LOG.debug("\tReader: %s", id(r))
+            LOG.debug("\tWriter: %s", id(w))
 
-                LOG.debug("\tReader: %s", id(r))
-                LOG.debug("\tWriter: %s", id(w))
+            LOG.debug("Filesize: %s bytes", r.size)
+            tracer = ProgressBar("Copying", r.size)
 
-                LOG.debug("Filesize: %s bytes", r.size)
-                tracer = ProgressBar("Copying", r.size)
+            #chunksize = max(r.CHUNK_SIZE, w.CHUNK_SIZE)
+            chunksize = min(r.CHUNK_SIZE, w.CHUNK_SIZE)
+            LOG.debug("Chunk size: %s bytes", chunksize)
+            buffer = bytearray(chunksize)
 
-                #chunksize = max(r.CHUNK_SIZE, w.CHUNK_SIZE)
-                chunksize = min(r.CHUNK_SIZE, w.CHUNK_SIZE)
-                LOG.debug("Chunk size: %s bytes", chunksize)
-                buffer = bytearray(chunksize)
-
-                while True:
-                    n = await r.readinto(buffer)
-                    if n == 0:
-                        break
-                    await w.write(buffer[:n])
-                    tracer.update(n)
-                tracer.close()
-                LOG.debug("Copied %s bytes / %s bytes", r.bytes_read, w.bytes_written)
+            while True:
+                n = await r.readinto(buffer)
+                if n == 0:
+                    break
+                await w.write(buffer[:n])
+                tracer.update(n)
+            tracer.close()
+            LOG.debug("Copied %s bytes / %s bytes", r.tell(), w.tell())
                     
-                if r.size != w.bytes_written:
-                    LOG.error("\tMissing bytes from: %s", src)
+            if r.size != w.tell():
+                LOG.error("\tMissing bytes from: %s", src)
 
 
     loop = asyncio.new_event_loop()

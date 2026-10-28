@@ -101,10 +101,13 @@ def decrypt(n, ciphertext, plaintext, output, session_keys, random_key=None):
     return psize
 
 
-async def _do_execute(service_key, master_key, rctx, wctx, path,
-                      do_reencryption=True,
-                      bufsize = c4gh.CIPHER_SEGMENT_SIZE,
-                      inbox_checksum=None):
+async def execute(data, path,
+                  service_key, master_key, rctx, wctx,
+                  do_reencryption = True,
+                  bufsize = None,
+                  inbox_checksum = None):
+
+    bufsize = bufsize or c4gh.CIPHER_SEGMENT_SIZE # reset
 
     LOG.debug('Reading header from %s', path)
     session_keys, header_len = await parse_header(service_key, rctx, path)
@@ -143,7 +146,7 @@ async def _do_execute(service_key, master_key, rctx, wctx, path,
 
     LOG.debug('Verifying payload')
     rfile = rctx.open(path, 'r')
-    wfile = wctx.open(path, 'ew', mkdirs=True)
+    wfile = wctx.open(path, 'w', mkdirs=True) # not ew, we want to create+truncate
 
     async with rfile as r, wfile as w:
 
@@ -211,7 +214,10 @@ async def _do_execute(service_key, master_key, rctx, wctx, path,
 
     LOG.info('Verification completed')
     plaintext_checksum = plaintext_sha256.hexdigest()
-    return plaintext_checksum, {
+    data['decrypted_checksums'] = [{'type': 'sha256', 'value': plaintext_checksum}]
+    job_id = data['internal']['job_id'] # let it crash if missing
+    data['internal'] = {
+        'job_id': job_id,
         'payload_sha256': staging_sha256.hexdigest(),
         'payload_size': bytes_written,
         'header': master_header.hex(),
@@ -219,56 +225,4 @@ async def _do_execute(service_key, master_key, rctx, wctx, path,
         'original_sha256': computed_inbox_checksum,
         'sk_hashes': sk_hashes
     }
-
-
-async def execute(config, message): # 128 segments = 8 MB
-
-    data = message.parsed
-
-    # prepend username to filepath
-    filepath = data['filepath'].lstrip('/')
-    username = data['user'].strip()
-    LOG.info('Processing [%s]/%s', username, filepath)
-    assert '/' not in username
-    filepath = os.path.join(username, filepath)
-
-    # Load the source/destination contexts
-    rctx = connectors.load(config.select_section('source'))
-    wctx = connectors.load(config.select_section('staging'))
-
-    do_reencryption = not config.getboolean('DEFAULT', 'skip_reencryption', fallback=False)
-
-    master_key = (0, config.service_key.private(), config.master_pubkey)
-    # from ingestion to recipient master
-    service_key = (0, config.service_key.private(), None) # not checking the sender
-
-    bufsize = config.getint('DEFAULT', 'bufsize', fallback=c4gh.CIPHER_SEGMENT_SIZE)
-
-    encrypted_checksum = None
-    for d in data.get('encrypted_checksums', []):
-        if d['type'].lower() == 'sha256':
-            encrypted_checksum = d['value']
-            break
-
-    try:
-        with rctx, wctx:
-            plaintext_checksum, internal = await _do_execute(service_key, master_key,
-                                                             rctx, wctx, filepath,
-                                                             do_reencryption=do_reencryption,
-                                                             bufsize = bufsize,
-                                                             inbox_checksum=encrypted_checksum)
-            # Publish the verified message, to Central EGA
-            data['decrypted_checksums'] = [{'type': 'sha256', 'value': plaintext_checksum}]
-            job_id = data['internal']['job_id'] # let it crash if missing
-            internal['job_id'] = job_id
-            data['internal'] = internal
-            data['type'] = 'ingestion.completed'
-            await config.mq.publish(data, 'ingestion.completed',
-                                    correlation_id=message.header.properties.correlation_id)
-    except Exception as e:
-        LOG.error('Cleaning staging on: %r', e)
-        try:
-            wctx.unlink(filepath)
-        except OSError:
-            pass
-        raise
+    return data

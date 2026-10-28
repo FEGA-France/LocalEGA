@@ -79,3 +79,17 @@ class ChecksumsNotMatching(Exception):
 
     def __repr__(self):
         return f'Checksums for {self.path} do not match:\n* {self.md1}\n* {self.md2}'
+
+class FilesizeNotMatching(Exception):
+    """Raised when filesize don't match."""
+
+    def __init__(self, path, s1, s2):
+        self.path = path
+        self.s1 = s1
+        self.s2 = s2
+
+    def __str__(self):
+        return f'Filesizes for {self.path} do not match: {self.s1} =/= {self.s2}'
+
+    def __repr__(self):
+        return f'Filesizes for {self.path} do not match: {self.s1} =/= {self.s2}'

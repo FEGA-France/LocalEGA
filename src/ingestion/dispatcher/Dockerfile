@@ -47,8 +47,6 @@ RUN chgrp shadow /etc/shadow && \
     chgrp lega /etc/ega      && \
     chmod 2770 /etc/ega
 
-VOLUME /etc/ega
-
 # We call it code so make it easier for the logger.json
 COPY dispatcher /ega/code
 

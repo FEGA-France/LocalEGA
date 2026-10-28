@@ -53,6 +53,7 @@ services:
     volumes:
       - ./confs/dispatcher.ini:/etc/ega/lega.ini:ro
       - ./confs/logger.json:/etc/ega/logger.json:ro
+      - ../../src/ingestion/dispatcher/dispatcher:/var/src/dispatcher:ro
     networks:
       - internal
     command: [ "/etc/ega/lega.ini" ]
@@ -71,8 +72,8 @@ services:
       - ./confs/logger.json:/etc/ega/logger.json:ro
       - ./confs/service.seckey:/etc/ega/service.seckey:ro
       - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
-      - ../../src/ingestion/ingester/ingester:/var/src/ingester:ro
       - staging:/ega/staging
+      # - ../../src/ingestion/ingester/ingester:/var/src/ingester:ro
     hostname: ingester-1
     container_name: lega-ingester-1
     command: ["/etc/ega/lega.ini", "ingestion-1"]
@@ -115,28 +116,32 @@ services:
       - staging:/ega/staging
       - vault.bkp:/ega/backup
       - lega-vault:/ega/vault
+      # - ../../src/ingestion/archiver/archiver:/var/src/archiver:ro
     hostname: archiver-1
     container_name: lega-archiver-1
-    command: ["/etc/ega/lega.ini", "archiver-1"]
+    command: ["/etc/ega/lega.ini", "archive-1"]
+    # entrypoint: "/bin/sleep"
+    # command: "365d"
+    # working_dir: "/var/src"
 
   archiver-2:
     extends:
       service: archiver-1
     hostname: archiver-2
     container_name: lega-archiver-2
-    command: ["/etc/ega/lega.ini", "archiver-2"]
+    command: ["/etc/ega/lega.ini", "archive-2"]
   archiver-3:
     extends:
       service: archiver-1
     hostname: archiver-3
     container_name: lega-archiver-3
-    command: ["/etc/ega/lega.ini", "archiver-3"]
+    command: ["/etc/ega/lega.ini", "archive-3"]
   archiver-4:
     extends:
       service: archiver-1
     hostname: archiver-4
     container_name: lega-archiver-4
-    command: ["/etc/ega/lega.ini", "archiver-4"]
+    command: ["/etc/ega/lega.ini", "archive-4"]
 
   vault-db:
     depends_on:

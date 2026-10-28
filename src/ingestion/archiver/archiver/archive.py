@@ -8,7 +8,7 @@ from pathlib import Path
 from hmac import compare_digest
 import asyncio
 
-from .utils import (format_time, set_info, remove_info, ChecksumsNotMatching)
+from .utils import format_time, ChecksumsNotMatching, FilesizeNotMatching
 from . import connectors
 
 if os.getenv('LEGA_TRACING', None) == '1':
@@ -18,9 +18,12 @@ else:
 
 LOG = logging.getLogger(__name__)
 
-async def _do_check(f, ctx, path, orgmd):
-    LOG.debug('Checksuming [%s]: %s', ctx, path)
-    tracer = Tracer('Checksuming', f.size)
+async def _do_check(f, size, orgmd):
+    LOG.debug('Comparing file sizes: %s', f.path)
+    if size != f.size:
+        raise FilesizeNotMatching(f.path, f.size, size)
+    LOG.debug('Checksuming %s', f.path)
+    tracer = Tracer('Checksuming', size)
     md = hashlib.sha256()
     chunk = bytearray(f.CHUNK_SIZE) # Reusable buffer
     start_time = time.time()
@@ -33,19 +36,17 @@ async def _do_check(f, ctx, path, orgmd):
     tracer.close()
     elapsed_time = time.time() - start_time
     LOG.debug('Elpased time: %s', format_time(elapsed_time))
-    c = md.hexdigest()
-    if not compare_digest(cs, orgmd):
+    if not compare_digest(md.digest(), orgmd):
+        computed = md.hexdigest()
+        compared = orgmd.hex()
         LOG.error('Different file checksums')
-        LOG.error('* computed: %s', c)
-        LOG.error('* compared: %s', orgmd)
-        raise ChecksumsNotMatching(path, c, orgmd)
+        LOG.error('\t* computed: %s', computed)
+        LOG.error('\t* compared: %s', compared)
+        raise ChecksumsNotMatching(f.path, computed, compared)
 
 async def _do_copy(r, v, b):
 
-    assert destinations, "Missing archiving destinations"
-    LOG.info('Archiving...') 
-
-    tracer = Tracer('Processing', r.size)
+    tracer = Tracer('Archiving', r.size)
     payload_sha256 = hashlib.sha256()
     start_time = time.time()
 
@@ -76,19 +77,15 @@ async def _do_copy(r, v, b):
     tracer.close()
     # del tracer
     elapsed_time = time.time() - start_time
-    LOG.debug('Bytes read: %s [payload size: %s]', bytes_read, r.size)
     speed = (bytes_read / elapsed_time) / (1<<20) # (1024 * 1024)
-
     LOG.info('Archival completed | elapsed time: %s | Speed: %s MB/s', format_time(elapsed_time), '{:.2f}'.format(speed))
-
-    # Checksum the output again
-    payload_sha256_checksum = payload_sha256.hexdigest()
-    LOG.debug('Payload checksum: %s', payload_sha256_checksum)
-    return payload_sha256_checksum
+    LOG.debug('Bytes read: %s [payload offset: %s]', bytes_read, r.tell())
+    LOG.debug('Payload checksum: %s', payload_sha256.hexdigest())
+    return payload_sha256.digest()
 
 
-async def execute(config, message):
-    data = message.parsed
+async def execute(data, rctx, vctx, bctx):
+
     filepath = data['filepath']
     accession_id = data['accession_id']
 
@@ -103,18 +100,11 @@ async def execute(config, message):
     assert '/' not in username
     filepath = os.path.join(username, filepath.lstrip('/'))
     
-    # Load the source/vault/backup contexts
-    rctx = connectors.load(config.select_section('source'))
-    vctx = connectors.load(config.select_section('destination'),
-                           shared_with=rctx) # share the ring
+    internal = data['internal']
+    ref_payload_filesize = internal['payload_size']
+    ref_payload_checksum = bytes.fromhex(internal['payload_sha256'])
 
-    do_backup = not config.getboolean('DEFAULT', 'skip_backup', fallback=False)
-    if do_backup:
-        bctx = connectors.load(config.select_section('backup'),
-                               shared_with=vctx) # share the ring
-        contexts = [vctx, bctx]
-    else:
-        contexts = [vctx]
+    contexts = [x for x in [vctx, bctx] if x]
     
     # In case we handle/receive twice the same message, (or archive
     # the same accession_id for 2 different staging files) we raise an
@@ -127,38 +117,40 @@ async def execute(config, message):
 
         rfile = rctx.open(filepath, 'r')
         vfile = vctx.open(relative_path, 'ew', mkdirs=True)
+        bfile = bctx.open(relative_path, 'ew', mkdirs=True) if bctx else connectors.noop()
 
-        async with rfile as r, vfile as v:
-            payload_filesize = r.size
-            if do_backup:
-                async with bctx.open(relative_path, 'ew', mkdirs=True) as b:
-                    payload_sha256_checksum = await _do_copy(r,v,b)
-            else:
-                payload_sha256_checksum = await _do_copy(r,v,None)
+        async with rfile as r, vfile as v, bfile as b:
+            payload_sha256_checksum = await _do_copy(r,v,b)
+            # Compare file size
+            if ref_payload_filesize != r.tell():
+                raise FilesizeNotMatching(filepath, r.tell(), ref_payload_filesize)
+            # Compare with reference payload checksum
+            if not compare_digest(payload_sha256_checksum, ref_payload_checksum):
+                raise ChecksumsNotMatching(filepath, payload_sha256_checksum.hex(), ref_payload_checksum.hex())
 
         # We now read the files again
         for ctx in contexts:
             async with ctx.open(relative_path, 'r') as f:
-                if payload_filesize != f.size:
-                    raise ValueError('non-matching filesizes')
-                await _do_check(f, ctx, relative_path, payload_sha256_checksum)
-                # read-only (umask already applied)
-                await f.chmod((await f.mode()) & 0o444)
+                await _do_check(f, ref_payload_filesize, ref_payload_checksum)
+                # Mark read-only
+                await f.make_read_only()
 
         # Success: send completion
-        data['type'] = 'archival.completed'
         data['internal']['relative_path'] = relative_path
-        await config.mq.publish(data, 'archival.completed',
-                                correlation_id=message.correlation_id)
+        return data
 
-    except Exception as e:
-        LOG.error('Cleaning on: %r', e)
-        # Note: other concurrent messages do not reach that point
-        for ctx in contexts:
-            try:
-                ctx.unlink(relative_path)
-            except OSError: 
-                LOG.error('Removing %s: %r', f, e)
-                #pass
+    except FileExistsError as e:
+        LOG.error('%r', e)
         raise
+    except Exception as e:
+        # LOG.error('Cleaning on: %r', e)
+        # # Note: other concurrent messages do not reach that point
+        # for ctx in contexts:
+        #     try:
+        #         await ctx.unlink(relative_path)
+        #     except OSError as ee: 
+        #         LOG.error('Removing %s | %s: %r', ctx, relative_path, ee)
+        #         #pass
+        raise
+
 

@@ -1,7 +1,7 @@
 """
 Async HTTP file I/O using aiohttp.
 
-This module provides an async HTTP file connector that implements the FileBase interface.
+This module provides an async HTTP file connector that implements the FileStream interface.
 
 Usage:
     rctx = HTTPFile(url='http://localhost:9000', login='...', password='...')
@@ -22,11 +22,11 @@ from typing import Literal
 
 import aiohttp
 
-from . import FileBase
+from . import FileStream
 
 LOG = logging.getLogger(__name__)
 
-class HTTPFile(FileBase):
+class HTTPStream(FileStream):
     """
     Async HTTP file I/O using aiohttp.
     Sync context for settings, async context manager via open() for operations.
@@ -50,19 +50,13 @@ class HTTPFile(FileBase):
         self.session_kwargs = session_kwargs
         self._session = None
 
+    def __str__(self):
+        return f'<HTTPStream | url:{self.url} | login: {self.login}>'
 
-    def __enter__(self) -> "S3File":
-        self._session = aiohttp.ClientSession(
-            base_url=self.url,
-            auth=aiohttp.BasicAuth(self.login, password=self.password),
-            **self.session_kwargs
-        )
+    def __enter__(self) -> "PosixStream":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
-        if self._session:
-            self._session.close()
-            self._session = None
         return False
 
     @asynccontextmanager
@@ -82,7 +76,7 @@ class HTTPFile(FileBase):
         self.path = path.lstrip('/')
         self.flags = flags
         self.size: int = 0
-        self.bytes_read: int = 0
+        self.offset: int = 0
         self._eof = False
         response = None
 
@@ -117,9 +111,6 @@ class HTTPFile(FileBase):
         n = await self.readinto(b)
         return b[:n]
 
-    def tell(self) -> int:
-        return self.bytes_read
-
     async def readinto(self, buffer: bytearray | memoryview) -> int:
         """
         Read data from HTTP response into buffer.
@@ -135,7 +126,7 @@ class HTTPFile(FileBase):
             return 0
 
         bytes_to_read = len(buffer)
-        offset = 0
+        off = 0
 
         while bytes_to_read > 0:
             chunk = await self._response.content.read(bytes_to_read)
@@ -144,15 +135,18 @@ class HTTPFile(FileBase):
                 break
 
             chunk_len = len(chunk)
-            buffer[offset:offset + chunk_len] = chunk
-            offset += chunk_len
+            buffer[off:off + chunk_len] = chunk
+            off += chunk_len
             bytes_to_read -= chunk_len
-            self.bytes_read += chunk_len
+            self.offset += chunk_len
 
-        return offset
+        return off
 
     async def write(self, data: bytes | bytearray | memoryview) -> int:
         raise NotImplementedError('HTTP connector does not support uploading (yet)')
+
+    async def unlink(self, path) -> None:
+        raise NotImplementedError('HTTP connector does not support unlink')
 
     async def stat(self, path) -> dict:
         """Fetch object metadata."""
@@ -209,9 +203,9 @@ if __name__ == "__main__":
                     await w.write(buffer[:n])
                     tracer.update(n)
                 tracer.close()
-                LOG.debug("Copied %s bytes / %s bytes", r.bytes_read, w.bytes_written)
+                LOG.debug("Copied %s bytes / %s bytes", r.tell(), w.tell())
                     
-                if r.size != w.bytes_written:
+                if r.size != w.tell():
                     LOG.error("\tMissing bytes from: %s", src)
 
 

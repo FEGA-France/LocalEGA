@@ -125,7 +125,9 @@ class MQConnection():
         return await self.consumer.basic_consume(self.queue, on_message, **kwargs)
 
 
-    async def publish(self, correlation_id, routing_key, message):
+    async def publish(self, correlation_id, routing_key, message, headers=None):
+
+        LOG.debug("Publishing [%s]: [ex: %s | rk: %s]", correlation_id, self.exchange, routing_key)
 
         properties = {
             'delivery_mode': 2,
@@ -133,10 +135,15 @@ class MQConnection():
         }
 
         if correlation_id:
-           properties['correlation_id'] = correlation_id
- 
-        LOG.debug("Publishing [%s]: [ex: %s | rk: %s]", correlation_id, self.exchange, routing_key)
+            properties['correlation_id'] = correlation_id
+
+        if headers:
+            assert isinstance(headers, dict), "Headers should be a dict"
+            LOG.debug('\tHeaders: %s', headers)
+            properties['headers'] = headers
+
         LOG.debug('=> %s', message)
+ 
         try:
             await self.publisher.basic_publish(message.encode(),
                                                exchange=self.exchange,

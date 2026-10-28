@@ -21,11 +21,11 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 
-from . import FileBase
+from . import FileStream
 
 LOG = logging.getLogger(__name__)
 
-class S3File(FileBase):
+class S3Stream(FileStream):
     """
     Async S3 file I/O using aioboto3.
     Sync context for settings, async context manager via open() for operations.
@@ -50,27 +50,22 @@ class S3File(FileBase):
         self.endpoint = endpoint
         assert '/' not in bucket, "bucket can't contain '/'"
         self.bucket = bucket
-        self.access_key = access_key
-        self.secret_key = secret_key
-        self.session_token = session_token
         self.config = Config(signature_version=signature_version or "s3v4")
-        self.region = region or 'us-east-1'
-        self.session_kwargs = session_kwargs
-        self._session = None
-
-
-    def __enter__(self) -> "S3File":
         self._session = aioboto3.Session(
-            aws_access_key_id=self.access_key,
-            aws_secret_access_key=self.secret_key,
-            aws_session_token=self.session_token,
-            region_name=self.region,
-            **self.session_kwargs,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            aws_session_token=session_token,
+            region_name=region or 'us-east-1',
+            **session_kwargs,
         )
+
+    def __str__(self):
+        return f'<S3Stream | endpoint:{self.endpoint} | bucket: {self.bucket}>' 
+
+    def __enter__(self) -> "S3Stream":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
-        # self._session = None
         return False
 
     @asynccontextmanager
@@ -101,6 +96,7 @@ class S3File(FileBase):
         self.bytes_read: int = 0
         self.bytes_written: int = 0
 
+
         # Create client
         async with self._session.client("s3",
                                         endpoint_url=self.endpoint,
@@ -126,6 +122,10 @@ class S3File(FileBase):
             # remove referernce
             self._s3_client = None
                         
+        # close session ?
+        # self._session.close()
+        # self._session = None
+
     async def _start_download(self) -> None:
         """Fetch object metadata for read mode."""
         head = await self._s3_client.head_object(
@@ -268,25 +268,11 @@ class S3File(FileBase):
 
         return bytes_to_write
 
-    @property
-    def position(self) -> int:
+    def tell(self) -> int:
         """Current position in the file."""
         return self._position
 
-    @position.setter
-    def position(self, value: int) -> None:
-        """Set the current position in the file."""
-        self._position = value
-        self._eof = False
-
-
-   async def chmod(self, path: str, mode: int) -> None:
-       pass
-
-   async def mode(self, path: str) -> int:
-       return 0
-
-   async def unlink(self, path: str) -> None:
+    async def unlink(self, path: str) -> None:
         """Delete object."""
         async with self._session.client("s3",
                                         endpoint_url=self.endpoint,
@@ -296,6 +282,9 @@ class S3File(FileBase):
                 Bucket=self.bucket,
                 Key=path.lstrip('/'),
             )
+
+    async def make_read_only(self) -> None:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -323,40 +312,39 @@ if __name__ == "__main__":
     async def main(src, dst):
 
         rctx = PosixFile()
-        wctx = S3File(endpoint = 'http://localhost:9000',
-                      bucket = 'lega',
-                      access_key='lega',
-                      secret_key='zzEH5pUK0gkrec1g9axPgZsKLGVXutVrarCoKm7t',
+        wctx = S3Stream(endpoint = 'http://localhost:9000',
+                        bucket = 'lega',
+                        access_key='lega',
+                        secret_key='zzEH5pUK0gkrec1g9axPgZsKLGVXutVrarCoKm7t',
                       )
         
-        with rctx, wctx:
-            rfile = rctx.open(src, 'r')
-            wfile = wctx.open(dst, 'w')
+        rfile = rctx.open(src, 'r')
+        wfile = wctx.open(dst, 'w')
 
-            async with rfile as r, wfile as w:
+        async with rfile as r, wfile as w:
+            
+            LOG.debug("\tReader: %s", id(r))
+            LOG.debug("\tWriter: %s", id(w))
 
-                LOG.debug("\tReader: %s", id(r))
-                LOG.debug("\tWriter: %s", id(w))
-
-                LOG.debug("Filesize: %s bytes", r.size)
-                tracer = ProgressBar("Copying", r.size)
+            LOG.debug("Filesize: %s bytes", r.size)
+            tracer = ProgressBar("Copying", r.size)
                 
-                #chunksize = max(r.CHUNK_SIZE, w.CHUNK_SIZE)
-                chunksize = min(r.CHUNK_SIZE, w.CHUNK_SIZE)
-                LOG.debug("Chunk size: %s bytes", chunksize)
-                buffer = bytearray(chunksize)
-
-                while True:
-                    n = await r.readinto(buffer)
-                    if n == 0:
-                        break
-                    await w.write(buffer[:n])
-                    tracer.update(n)
-                tracer.close()
-                LOG.debug("Copied %s bytes / %s bytes", r.bytes_read, w.bytes_written)
+            #chunksize = max(r.CHUNK_SIZE, w.CHUNK_SIZE)
+            chunksize = min(r.CHUNK_SIZE, w.CHUNK_SIZE)
+            LOG.debug("Chunk size: %s bytes", chunksize)
+            buffer = bytearray(chunksize)
+            
+            while True:
+                n = await r.readinto(buffer)
+                if n == 0:
+                    break
+                await w.write(buffer[:n])
+                tracer.update(n)
+            tracer.close()
+            LOG.debug("Copied %s bytes / %s bytes", r.bytes_read, w.bytes_written)
                     
-                if r.size != w.bytes_written:
-                    LOG.error("\tMissing bytes from: %s", src)
+            if r.size != w.bytes_written:
+                LOG.error("\tMissing bytes from: %s", src)
 
 
     loop = asyncio.new_event_loop()

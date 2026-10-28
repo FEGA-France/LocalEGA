@@ -15,32 +15,50 @@ def get_checksum(arr, alg):
             return d.get('value', None)
     return None
 
-def forward(func):
+def in_transaction(func):
     async def wrapper(self, *args, **kwargs):
         async with self.lock: # need to avoid interleaving dispatched messages on the same connection
             try:
                 cur = self.connection.cursor()
                 cur.execute('BEGIN TRANSACTION;')
-                gen = func(self, cur, *args, **kwargs)
-                if isasyncgen(gen):
-                    async for correlation_id, routing_key, message in gen:
-                        if isinstance(message, FEGAMessage):
-                            _message = message.content
-                            correlation_id = message.correlation_id # reset
-                        elif isinstance(message, str):
-                            _message = message
-                        else: # don't bother with bytes
-                            _message = json.dumps(message, indent=4)
-                            cur.execute('INSERT INTO messages(correlation_id, routing_key, message) VALUES(?,?,?)',
-                                        (correlation_id, routing_key, _message))
-                else:
-                    await gen
+                await func(self, cur, *args, **kwargs)
                 cur.execute('COMMIT;')
-                self.event.set() # notify publisher loop
             except Exception as e:
                 LOG.error('func %s raised %r', func.__name__, e, exc_info=True)
                 cur.execute('ROLLBACK;')
                 raise
+    wrapper.__qualname__ = func.__qualname__
+    wrapper.__name__ = func.__name__
+    return wrapper
+
+def forward(func):
+    @in_transaction
+    async def wrapper(self, cur, *args, **kwargs):
+        gen = func(self, cur, *args, **kwargs)
+        if isasyncgen(gen):
+            async for values in gen:
+                try:
+                    correlation_id, routing_key, message, headers = values
+                except Exception as e:
+                    correlation_id, routing_key, message = values
+                    headers = dict()
+                if isinstance(message, FEGAMessage):
+                    _message = message.content
+                    correlation_id = message.correlation_id # reset
+                elif isinstance(message, str):
+                    _message = message
+                else: # don't bother with bytes
+                    _message = json.dumps(message, indent=4)
+                cur.execute('INSERT INTO messages(correlation_id, routing_key, message) VALUES(?,?,?)',
+                            (correlation_id, routing_key, _message))
+                row_id = cur.lastrowid
+                for k,v in headers.items():
+                    cur.execute('INSERT INTO messages_headers(message_id, key, value) VALUES(?,?,?)',
+                                (row_id, k, v))
+        else:
+            await gen
+        # notify publisher loop
+        self.event.set()
     wrapper.__qualname__ = func.__qualname__
     wrapper.__name__ = func.__name__
     return wrapper
@@ -376,7 +394,8 @@ class DBConnection():
               	'payload_size': r['payload_size'],
                	'job_id': r['id'],
             }
-            yield (r['correlation_id'], 'archive', data)
+            # Republish to lega.archive
+            yield (r['correlation_id'], 'archive', data, {'accession_id': accession_id})
 
 
     @forward
@@ -478,12 +497,19 @@ class DBConnection():
                 LOG.debug('Publishing %d messages', len(results))
                 published = []
                 for row in results:
-                    if await self.conf.mq.publish(row['correlation_id'], row['routing_key'], row['message']):
-                        published.append((row['id'],))
-                
+                    row_id = (row['id'],)
+                    hcur = self.connection.cursor()
+                    hres = hcur.execute('SELECT key, value FROM messages_headers WHERE message_id = ?', row_id)
+                    headers = dict([ (r['key'], r['value']) for r in hres.fetchall() ])
+                    del hcur
+                    if await self.conf.mq.publish(row['correlation_id'], row['routing_key'], row['message'],
+                                                  headers=headers):
+                        published.append(row_id)
+                        
                 if published:
                     LOG.debug('Deleting %d messages', len(published))
                     cur.executemany('DELETE FROM messages WHERE id = ?', published)
+                    # Will autodelete the headers (key,value) of those messages
                     self.connection.commit()
                 self.event.clear()
 

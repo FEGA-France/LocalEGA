@@ -3,22 +3,16 @@ import time
 from abc import ABC, abstractmethod
 from contextlib import AbstractAsyncContextManager
 
-__all__ = ['FileBase', 'load', 'NoTracer', 'ProgressBar']
+__all__ = ['FileStream', 'load', 'NoTracer', 'ProgressBar']
 
-
-class FileBase(ABC):
+class FileStream(ABC):
    """
-   A async byte stream source/destination.
+   A async byte stream.
    """
 
    size: int = 0              # total size in bytes, valid after open()
+   offset: int = 0            # position
    CHUNK_SIZE: int = 1 << 23  # 8MB, default: 8 * 1024 * 1024
-
-   @abstractmethod
-   def __enter__(self) -> None: ...
-
-   @abstractmethod
-   def __exit__(self, exc_type, exc_val, exc_tb) -> bool: ...
 
    @abstractmethod
    async def open(self,
@@ -27,7 +21,7 @@ class FileBase(ABC):
                   mkdirs: bool = False) -> AbstractAsyncContextManager: ...
 
    @abstractmethod
-   async def readinto(self, buffer: bytearray | memoryview, offset: int) -> int:
+   async def readinto(self, buffer: bytearray | memoryview) -> int:
       """Fill buffer[:size] from `offset`. Returns bytes read; 0 means EOF."""
 
    @abstractmethod
@@ -35,7 +29,7 @@ class FileBase(ABC):
       """Reads n bytes from the current position/offset."""
 
    @abstractmethod
-   async def write(self, buffer: bytes | bytearray | memoryview, offset: int) -> int:
+   async def write(self, buffer: bytes | bytearray | memoryview) -> int:
       """Writes buffer (at `offset` if not None). Returns bytes written"""
 
    # @abstractmethod
@@ -43,59 +37,38 @@ class FileBase(ABC):
    #    """Set the current position of the file to position pos, modified by whence.
    #       Returns the new position in bytes relative to the start of the file."""
 
-   @abstractmethod
    def tell(self) -> int:
       """Returns the current position in bytes relative to the start of the file."""
+      return self.offset
  
-   # Not async, and only in posix interface
+   @abstractmethod
    async def unlink(self, path) -> None:
-      raise NotImplementedError('unlink not implemented in this connector')
+      """Removes the file `path`."""
 
 
 
-def load(section: dict, shared_with: FileBase = None, **kwargs):
+def load(section: dict, **kwargs):
    s = section['type']
    match s:
       case 'posix':
-         from .posix import PosixFile
-         if shared_with is not None and isinstance(shared_with, PosixFile):
-            return PosixFile.build_from(shared_with, rootdir=section.get('rootdir'), **kwargs)
-         return PosixFile(rootdir=section.get('rootdir'), **kwargs)
-      # case 'sftp':
-      #    from .sftp import SFTPFile
-      #    if shared_with is not None and isinstance(shared_with, SFTPFile):
-      #       return SFTPFile.build_from(shared_with,
-      #                                  section['host'], # fail if missing
-      #                                  section['username'], # fail if missing
-      #                                  port=section.get('port'),
-      #                                  password=section.get('password'),
-      #                                  private_key=section.get('private_key'),
-      #                                  passphrase=section.get('passphrase'),
-      #                                  **kwargs)
-
-      #    return SFTPFile(section['host'], # fail if missing
-      #                    section['username'], # fail if missing
-      #                    port=section.get('port'),
-      #                    password=section.get('password'),
-      #                    private_key=section.get('private_key'),
-      #                    passphrase=section.get('passphrase'),
-      #                    **kwargs)
+         from .posix import PosixStream
+         return PosixStream(rootdir=section.get('rootdir'), **kwargs)
       case 's3':
-         from .s3 import S3File
-         return S3File(section['endpoint'], # fail if missing
-                       section['bucket'], # fail if missing
-                       access_key=section.get('access_key'),
-                       secret_key=section.get('secret_key'),
-                       session_token=section.get('session_token'),
-                       signature_version=section.get('signature_version'),
-                       region=section.get('region'),
-                       **kwargs)
-      case 'http':
-         from .http import HTTPFile
-         return HTTPFile(section['url'], # fail if missing
-                         section['login'],
-                         section['password'],
+         from .s3 import S3Stream
+         return S3Stream(section['endpoint'], # fail if missing
+                         section['bucket'], # fail if missing
+                         access_key=section.get('access_key'),
+                         secret_key=section.get('secret_key'),
+                         session_token=section.get('session_token'),
+                         signature_version=section.get('signature_version'),
+                         region=section.get('region'),
                          **kwargs)
+      case 'http':
+         from .http import HTTPStream
+         return HTTPStream(section['url'], # fail if missing
+                           section['login'],
+                           section['password'],
+                           **kwargs)
       case _:
          raise ValueError(f"Unknown connector: {s}")
 

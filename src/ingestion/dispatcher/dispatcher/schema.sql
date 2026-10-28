@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE UNIQUE INDEX IF NOT EXISTS jobs_idx ON jobs(username,filepath);
 
 CREATE TABLE IF NOT EXISTS messages (
-    id               integer PRIMARY KEY,
+    id               integer PRIMARY KEY AUTOINCREMENT,
 
     correlation_id text NOT NULL,
     routing_key    text NOT NULL,
@@ -53,6 +53,19 @@ CREATE TABLE IF NOT EXISTS messages (
 
     -- auditing
     created_at     bigint NOT NULL DEFAULT (unixepoch('now'))
+);
+
+CREATE TABLE IF NOT EXISTS messages_headers (
+    id               integer PRIMARY KEY AUTOINCREMENT,
+
+    message_id     integer NOT NULL,
+    key            text NOT NULL,
+    value          text NOT NULL,
+
+    -- auditing
+    created_at     bigint NOT NULL DEFAULT (unixepoch('now')),
+
+    FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
 );
 
 
