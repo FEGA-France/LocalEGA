@@ -17,10 +17,6 @@
             "handlers": [ "console" ],
             "propagate": true
         },
-        "asyncpg": {
-            "level": "CRITICAL",
-            "handlers": [ "console" ]
-        },
         "pamqp": {
             "level": "CRITICAL",
             "handlers": [ "console" ]

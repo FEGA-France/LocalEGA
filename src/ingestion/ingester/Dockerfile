@@ -64,13 +64,12 @@ RUN chgrp shadow /etc/shadow && \
     chmod 2700 /ega/staging
 
 
-# We call it code so make it easier for the logger.json
-COPY ingester /ega/code
+COPY ingester /ega/ingester
 
 VOLUME /ega/staging
 VOLUME /ega/inbox
 
 USER lega
 WORKDIR /ega
-ENTRYPOINT ["python", "-m", "code"]
+ENTRYPOINT ["python", "-m", "ingester"]
 #CMD ["/etc/ega/lega.ini", "ingestion-1"] # injected config file + queue name

@@ -68,8 +68,7 @@ RUN chgrp shadow /etc/shadow && \
     chmod 2700 /ega/backup
 
 
-# We call it code so make it easier for the logger.json
-COPY archiver /ega/code
+COPY archiver /ega/archiver
 
 VOLUME /ega/staging
 VOLUME /ega/vault
@@ -77,5 +76,5 @@ VOLUME /ega/backup
 
 USER lega
 WORKDIR /ega
-ENTRYPOINT ["python", "-m", "code"]
+ENTRYPOINT ["python", "-m", "archiver"]
 #CMD ["/etc/ega/lega.ini", "archiver"] # injected config file + connection name

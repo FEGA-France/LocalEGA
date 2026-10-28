@@ -17,11 +17,6 @@
             "handlers": [ "console" ],
             "propagate": true
         },
-        "code": {
-            "level": "DEBUG",
-            "handlers": [ "console" ],
-            "propagate": true
-        },
         "crypt4gh": {
             "level": "CRITICAL",
             "handlers": [ "console" ]
