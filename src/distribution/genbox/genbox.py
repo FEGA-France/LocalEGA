@@ -81,7 +81,10 @@ async def generate(args, cur, dsn):
         info = await conn_src.fetchval('''SELECT selection
                                           FROM tre.user_selection_table WHERE username = $1''',
                                           args.username)
-        info = json.loads(info) # it's jsonb
+        if info:
+            info = json.loads(info) # it's jsonb
+        else:
+            info = { 'selection': {}, 'tools': {} }
 
         data = info['selection'].get('data', [])
 
