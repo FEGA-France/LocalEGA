@@ -12,7 +12,7 @@ skip_reencryption = true
 source = inbox.posix
 destination = staging.posix
 
-[inbox.http]
+[inbox.posix]
 type = posix
 rootdir = /ega/inbox
 
