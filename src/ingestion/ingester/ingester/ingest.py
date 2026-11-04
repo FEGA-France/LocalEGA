@@ -112,11 +112,12 @@ async def execute(data, path,
     LOG.debug('Reading header from %s', path)
     session_keys, header_len = await parse_header(service_key, rctx, path)
     LOG.debug('Found %d session keys | header len: %s', len(session_keys), header_len)
-    # LOG.debug('session key: %s', session_keys[0].hex())
+    LOG.debug('============= session key: %s', session_keys[0].hex())
 
     LOG.debug('Creating Crypt4GH packets | reencryption: %s', do_reencryption)
     if do_reencryption:
         random_key = os.urandom(32)
+        LOG.debug('============= new session key: %s', random_key.hex())
         # Creating a new header with a new (random) session key
         # we use only one session key for all blocks
         header_packets = [crypt4gh.header.make_packet_data_enc(0, random_key)]
@@ -135,6 +136,7 @@ async def execute(data, path,
           for x in crypt4gh.header.encrypt(p, [master_key])
          ])
 
+    LOG.debug('============= master header: %s', master_header.hex())
     
     inbox_sha256 = hashlib.sha256()
     staging_sha256 = hashlib.sha256()
@@ -165,10 +167,10 @@ async def execute(data, path,
         ciphertext_len = c4gh.CIPHER_SEGMENT_SIZE * factor
         plaintext_len = c4gh.SEGMENT_SIZE * factor
         
-        ciphertext = bytearray(ciphertext_len)
-        plaintext = bytearray(plaintext_len)
-        output = bytearray(ciphertext_len)
-        
+        ciphertext = memoryview(bytearray(ciphertext_len))
+        plaintext = memoryview(bytearray(plaintext_len))
+        output = memoryview(bytearray(ciphertext_len))
+
         # Read the original header first, position the stream at the payload
         original_header = await r.read(header_len)
         inbox_sha256.update(original_header)
@@ -212,8 +214,8 @@ async def execute(data, path,
                               inbox_sha256.digest()):
             raise exceptions.ChecksumsNotMatching(path, computed_inbox_checksum, inbox_checksum) # hex
 
-    LOG.info('Verification completed')
     plaintext_checksum = plaintext_sha256.hexdigest()
+    LOG.info('Verification completed: %s', plaintext_checksum)
     data['decrypted_checksums'] = [{'type': 'sha256', 'value': plaintext_checksum}]
     job_id = data['internal']['job_id'] # let it crash if missing
     data['internal'] = {

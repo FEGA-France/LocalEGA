@@ -506,7 +506,9 @@ class PosixStream(FileStream):
 
     async def read(self, size: int) -> bytes:
         """Reads n bytes from the current position/offset."""
-        raise NotImplementedError("Use readinto")
+        b = bytearray(size)
+        n = await self.readinto(b)
+        return b[:n]
 
     async def readinto(self, buffer: bytearray | memoryview) -> int:
         """
