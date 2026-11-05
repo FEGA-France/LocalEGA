@@ -79,3 +79,8 @@ USER postgres
 EXPOSE 5432
 ENTRYPOINT ["postgres"]
 CMD ["-c", "config_file=/etc/ega/pg.conf"]
+
+ARG COMMIT
+ARG BUILD_DATE
+LABEL org.label-schema.build-date=$BUILD_DATE
+LABEL org.label-schema.vcs-ref=$COMMIT
