@@ -48,35 +48,38 @@ services:
         condition: service_healthy
         restart: true
     hostname: dispatcher
-    image: lega/dispatcher:latest
+    image: lega/ingestion:latest
     container_name: lega-dispatcher
     volumes:
       - ./confs/dispatcher.ini:/etc/ega/lega.ini:ro
-      - ./confs/logger.json:/etc/ega/logger.json:ro
-      - ../../src/ingestion/dispatcher/dispatcher:/var/src/dispatcher:ro
+      # - ./confs/logger.json:/etc/ega/logger.json:ro
+      # - ../../src/ingestion/code:/var/src/code:ro
     networks:
       - internal
-    command: [ "/etc/ega/lega.ini" ]
+    command: [ "dispatcher", "/etc/ega/lega.ini" ]
+    # entrypoint: "/bin/sleep"
+    # command: "365d"
+    # working_dir: "/var/src"
 
   ingester-1:
     depends_on:
       mq:
         condition: service_healthy
         restart: true
-    image: lega/ingester:latest
+    image: lega/ingestion:latest
     networks:
       - internal
       - fega-external # connect to fega-inbox
     volumes:
       - ./confs/ingester.ini:/etc/ega/lega.ini:ro
-      - ./confs/logger.json:/etc/ega/logger.json:ro
+      # - ./confs/logger.json:/etc/ega/logger.json:ro
       - ./confs/service.seckey:/etc/ega/service.seckey:ro
       - ./confs/master.pubkey:/etc/ega/master.pubkey:ro
       - staging:/ega/staging
-      # - ../../src/ingestion/ingester/ingester:/var/src/ingester:ro
+      # - ../../src/ingestion/code:/var/src/code:ro
     hostname: ingester-1
     container_name: lega-ingester-1
-    command: ["/etc/ega/lega.ini", "ingestion-1"]
+    command: ["ingester", "/etc/ega/lega.ini", "ingestion-1"]
     # entrypoint: "/bin/sleep"
     # command: "365d"
     # working_dir: "/var/src"
@@ -86,19 +89,19 @@ services:
       service: ingester-1
     hostname: ingester-2
     container_name: lega-ingester-2
-    command: ["/etc/ega/lega.ini", "ingestion-2"]
+    command: ["ingester", "/etc/ega/lega.ini", "ingestion-2"]
   ingester-3:
     extends:
       service: ingester-1
     hostname: ingester-3
     container_name: lega-ingester-3
-    command: ["/etc/ega/lega.ini", "ingestion-3"]
+    command: ["ingester", "/etc/ega/lega.ini", "ingestion-3"]
   ingester-4:
     extends:
       service: ingester-1
     hostname: ingester-4
     container_name: lega-ingester-4
-    command: ["/etc/ega/lega.ini", "ingestion-4"]
+    command: ["ingester", "/etc/ega/lega.ini", "ingestion-4"]
 
 
   archiver-1:
@@ -106,20 +109,20 @@ services:
       mq:
         condition: service_healthy
         restart: true
-    image: lega/archiver:latest
+    image: lega/ingestion:latest
     networks:
       - vault
       - internal # to make it contact mq without routing
     volumes:
       - ./confs/archiver.ini:/etc/ega/lega.ini:ro
-      - ./confs/logger.json:/etc/ega/logger.json:ro
+      # - ./confs/logger.json:/etc/ega/logger.json:ro
       - staging:/ega/staging
       - vault.bkp:/ega/backup
       - lega-vault:/ega/vault
-      # - ../../src/ingestion/archiver/archiver:/var/src/archiver:ro
+      # - ../../src/ingestion/code:/var/src/code:ro
     hostname: archiver-1
     container_name: lega-archiver-1
-    command: ["/etc/ega/lega.ini", "archive-1"]
+    command: ["archiver", "/etc/ega/lega.ini", "archive-1"]
     # entrypoint: "/bin/sleep"
     # command: "365d"
     # working_dir: "/var/src"
@@ -129,19 +132,19 @@ services:
       service: archiver-1
     hostname: archiver-2
     container_name: lega-archiver-2
-    command: ["/etc/ega/lega.ini", "archive-2"]
+    command: ["archiver", "/etc/ega/lega.ini", "archive-2"]
   archiver-3:
     extends:
       service: archiver-1
     hostname: archiver-3
     container_name: lega-archiver-3
-    command: ["/etc/ega/lega.ini", "archive-3"]
+    command: ["archiver", "/etc/ega/lega.ini", "archive-3"]
   archiver-4:
     extends:
       service: archiver-1
     hostname: archiver-4
     container_name: lega-archiver-4
-    command: ["/etc/ega/lega.ini", "archive-4"]
+    command: ["archiver", "/etc/ega/lega.ini", "archive-4"]
 
   vault-db:
     depends_on:

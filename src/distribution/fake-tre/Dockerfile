@@ -66,6 +66,5 @@ WORKDIR /
 ENTRYPOINT ["/bin/sleep"]
 CMD ["356d"]
 
-ARG COMMIT
 ARG BUILD_DATE
 LABEL org.label-schema.build-date=$BUILD_DATE

@@ -15,12 +15,8 @@ DC=docker compose
 
 image-vault-db:
 	$(MAKE) -C ../../src/vault-db latest ARGS=$(ARGS) PG_SU_PASSWORD=fake
-image-dispatcher:
-	$(MAKE) -C ../../src/ingestion/dispatcher latest ARGS=$(ARGS)
-image-ingester:
-	$(MAKE) -C ../../src/ingestion/ingester latest ARGS=$(ARGS)
-image-archiver:
-	$(MAKE) -C ../../src/ingestion/archiver latest ARGS=$(ARGS)
+image-ingestion:
+	$(MAKE) -C ../../src/ingestion latest ARGS=$(ARGS)
 image-mq:
 	$(MAKE) -C ../../src/mq latest ARGS=$(ARGS)
 image-tre:
@@ -30,7 +26,7 @@ image-s3:
 	$(MAKE) -C ../../src/s3 latest ARGS=$(ARGS)
 
 
-images: image-dispatcher image-ingester image-archiver
+images: image-ingestion
 images: image-vault-db image-mq
 # images: image-tre
 
