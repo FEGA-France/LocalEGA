@@ -12,7 +12,7 @@
             "handlers": [ "console" ],
             "propagate": true
         },
-        "code": {
+        "lega": {
             "level": "DEBUG",
             "handlers": [ "console" ],
             "propagate": true

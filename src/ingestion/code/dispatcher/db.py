@@ -488,7 +488,9 @@ class DBConnection():
             await self.event.wait() # wait for "notifications"
 
             async with self.lock: # avoid asyncio interleaving
-                res = cur.execute('SELECT id, correlation_id, routing_key, message FROM messages')
+                res = cur.execute('''SELECT id, correlation_id, routing_key, message
+                                     FROM messages
+                                     ORDER BY id ASC''')
                 results = res.fetchall()
                 if not results:
                     self.event.clear()

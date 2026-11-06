@@ -68,16 +68,16 @@ RUN chgrp shadow /etc/shadow && \
     chmod 2700 /ega/backup
 
 
-COPY code /ega/code
-
 VOLUME /ega/staging
 VOLUME /ega/vault
 VOLUME /ega/backup
 
+COPY code /opt/lega
+
 USER lega
-WORKDIR /ega
-ENTRYPOINT ["python", "-m", "code"]
-#CMD ["/etc/ega/lega.ini", "ingestion-1"] # injected config file + queue name
+WORKDIR /opt
+ENTRYPOINT ["python", "-m", "lega"]
+#CMD ["<dispatcher/ingester/archiver>", "/etc/ega/lega.ini", "queue"] # <module> <conf> <queue>
 
 ARG COMMIT
 ARG BUILD_DATE

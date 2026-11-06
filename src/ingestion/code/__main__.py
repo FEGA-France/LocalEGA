@@ -9,19 +9,19 @@ if __name__ == '__main__':
         command = sys.argv[1]
         match command:
             case 'dispatcher':
-                if len(sys.argv) < 2:
+                if len(sys.argv) < 3:
                     print(f'Usage: {sys.argv[0]} dispatcher <conf_file>')
                     sys.exit(1)
                 from . import dispatcher
                 dispatcher.main(sys.argv[2])
             case 'ingester':
-                if len(sys.argv) < 3:
+                if len(sys.argv) < 4:
                     print(f'Usage: {sys.argv[0]} ingester <conf_file> <queue>')
                     sys.exit(1)
                 from . import ingester
                 ingester.main(sys.argv[2], sys.argv[3])
             case 'archiver':
-                if len(sys.argv) < 3:
+                if len(sys.argv) < 4:
                     print(f'Usage: {sys.argv[0]} archiver <conf_file> <queue>')
                     sys.exit(1)
                 from . import archiver

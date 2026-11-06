@@ -56,7 +56,8 @@ services:
       # - ../../src/ingestion/code:/var/src/code:ro
     networks:
       - internal
-    command: [ "dispatcher", "/etc/ega/lega.ini" ]
+    entrypoint: [ "python", "-m", "lega.dispatcher" ]
+    command: [ "/etc/ega/lega.ini" ]
     # entrypoint: "/bin/sleep"
     # command: "365d"
     # working_dir: "/var/src"
@@ -79,7 +80,8 @@ services:
       # - ../../src/ingestion/code:/var/src/code:ro
     hostname: ingester-1
     container_name: lega-ingester-1
-    command: ["ingester", "/etc/ega/lega.ini", "ingestion-1"]
+    entrypoint: [ "python", "-m", "lega.ingester", "/etc/ega/lega.ini"]
+    command: ["ingestion-1"]
     # entrypoint: "/bin/sleep"
     # command: "365d"
     # working_dir: "/var/src"
@@ -89,19 +91,19 @@ services:
       service: ingester-1
     hostname: ingester-2
     container_name: lega-ingester-2
-    command: ["ingester", "/etc/ega/lega.ini", "ingestion-2"]
+    command: ["ingestion-2"]
   ingester-3:
     extends:
       service: ingester-1
     hostname: ingester-3
     container_name: lega-ingester-3
-    command: ["ingester", "/etc/ega/lega.ini", "ingestion-3"]
+    command: ["ingestion-3"]
   ingester-4:
     extends:
       service: ingester-1
     hostname: ingester-4
     container_name: lega-ingester-4
-    command: ["ingester", "/etc/ega/lega.ini", "ingestion-4"]
+    command: ["ingestion-4"]
 
 
   archiver-1:
@@ -122,7 +124,8 @@ services:
       # - ../../src/ingestion/code:/var/src/code:ro
     hostname: archiver-1
     container_name: lega-archiver-1
-    command: ["archiver", "/etc/ega/lega.ini", "archive-1"]
+    entrypoint: [ "python", "-m", "lega.archiver", "/etc/ega/lega.ini"]
+    command: ["archive-1"]
     # entrypoint: "/bin/sleep"
     # command: "365d"
     # working_dir: "/var/src"
@@ -132,19 +135,19 @@ services:
       service: archiver-1
     hostname: archiver-2
     container_name: lega-archiver-2
-    command: ["archiver", "/etc/ega/lega.ini", "archive-2"]
+    command: ["archive-2"]
   archiver-3:
     extends:
       service: archiver-1
     hostname: archiver-3
     container_name: lega-archiver-3
-    command: ["archiver", "/etc/ega/lega.ini", "archive-3"]
+    command: ["archive-3"]
   archiver-4:
     extends:
       service: archiver-1
     hostname: archiver-4
     container_name: lega-archiver-4
-    command: ["archiver", "/etc/ega/lega.ini", "archive-4"]
+    command: ["archive-4"]
 
   vault-db:
     depends_on:
