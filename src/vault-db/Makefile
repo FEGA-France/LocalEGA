@@ -16,7 +16,10 @@ all: latest
 
 build: ARGS+=--target BUILD
 build latest:
-	docker build $(ARGS) -t $(IMG):$(COMMIT) .
+	docker build $(ARGS) \
+	       --build-arg COMMIT=$(COMMIT) \
+               --build-arg BUILD_DATE="$(shell date +%Y-%m-%d_%H.%M.%S)" \
+	       -t $(IMG):$(COMMIT) .
 	docker tag $(IMG):$(COMMIT) $(IMG):$@
 
 

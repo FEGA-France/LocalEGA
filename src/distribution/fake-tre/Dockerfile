@@ -69,3 +69,4 @@ CMD ["356d"]
 ARG COMMIT
 ARG BUILD_DATE
 LABEL org.label-schema.build-date=$BUILD_DATE
+LABEL org.label-schema.vcs-ref=$COMMIT
