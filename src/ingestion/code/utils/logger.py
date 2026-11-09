@@ -12,9 +12,6 @@ from socket import gethostname
 from pwd import getpwuid
 import time
 
-from elasticsearch import AsyncElasticsearch, ApiError
-from elasticsearch.helpers import async_bulk
-
 _hostname = gethostname() # container id or hostname
 _uid = os.getuid()
 _username = getpwuid(os.getuid()).pw_name
@@ -265,6 +262,10 @@ class AsyncBufferedElasticSearchHandler(logging.Handler):
         self.loop = asyncio.get_running_loop()
         self.org_retry_after = retry_after or 1
         self.retry_after = self.org_retry_after
+
+        from elasticsearch import AsyncElasticsearch, ApiError
+        from elasticsearch.helpers import async_bulk
+
         self.client = AsyncElasticsearch(url, # including basic auth
                                          ca_certs=ca_certs,
                                          verify_certs=verify_certs)
