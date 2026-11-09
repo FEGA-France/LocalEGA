@@ -306,7 +306,7 @@ if __name__ == "__main__":
     logging.getLogger("aioboto3").setLevel(logging.WARNING)
     logging.getLogger("aiobotocore").setLevel(logging.WARNING)
 
-    from . import ProgressBar
+    from ..tracer import ProgressBar
     from .posix import PosixFile
 
     async def main(src, dst):
@@ -318,33 +318,35 @@ if __name__ == "__main__":
                         secret_key='zzEH5pUK0gkrec1g9axPgZsKLGVXutVrarCoKm7t',
                       )
         
-        rfile = rctx.open(src, 'r')
-        wfile = wctx.open(dst, 'w')
+        with rctx, wctx:
 
-        async with rfile as r, wfile as w:
-            
-            LOG.debug("\tReader: %s", id(r))
-            LOG.debug("\tWriter: %s", id(w))
+            rfile = rctx.open(src, 'r')
+            wfile = wctx.open(dst, 'w')
 
-            LOG.debug("Filesize: %s bytes", r.size)
-            tracer = ProgressBar("Copying", r.size)
+            async with rfile as r, wfile as w:
                 
-            #chunksize = max(r.CHUNK_SIZE, w.CHUNK_SIZE)
-            chunksize = min(r.CHUNK_SIZE, w.CHUNK_SIZE)
-            LOG.debug("Chunk size: %s bytes", chunksize)
-            buffer = bytearray(chunksize)
-            
-            while True:
-                n = await r.readinto(buffer)
-                if n == 0:
-                    break
-                await w.write(buffer[:n])
-                tracer.update(n)
-            tracer.close()
-            LOG.debug("Copied %s bytes / %s bytes", r.bytes_read, w.bytes_written)
+                LOG.debug("\tReader: %s", id(r))
+                LOG.debug("\tWriter: %s", id(w))
+
+                LOG.debug("Filesize: %s bytes", r.size)
+                tracer = ProgressBar("Copying", r.size)
+                
+                #chunksize = max(r.CHUNK_SIZE, w.CHUNK_SIZE)
+                chunksize = min(r.CHUNK_SIZE, w.CHUNK_SIZE)
+                LOG.debug("Chunk size: %s bytes", chunksize)
+                buffer = bytearray(chunksize)
+                
+                while True:
+                    n = await r.readinto(buffer)
+                    if n == 0:
+                        break
+                    await w.write(buffer[:n])
+                    tracer.update(n)
+                tracer.close()
+                LOG.debug("Copied %s bytes / %s bytes", r.bytes_read, w.bytes_written)
                     
-            if r.size != w.bytes_written:
-                LOG.error("\tMissing bytes from: %s", src)
+                if r.size != w.bytes_written:
+                    LOG.error("\tMissing bytes from: %s", src)
 
 
     loop = asyncio.new_event_loop()

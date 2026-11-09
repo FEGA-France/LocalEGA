@@ -172,7 +172,7 @@ if __name__ == "__main__":
 
     logging.getLogger("aiohttp").setLevel(logging.WARNING)
 
-    from . import ProgressBar
+    from ..tracer import ProgressBar
     from .posix import PosixFile
 
     async def main(src, dst):

@@ -565,49 +565,51 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <conf> <src> <dst>")
+        print(f"Usage: {sys.argv[0]} <src> <dst>")
         sys.exit(1)
 
     logging.basicConfig(level=logging.DEBUG,
                         format='%(message)s')
 
     from contextlib import AbstractAsyncContextManager
-    from . import ProgressBar
+    from ..tracer import ProgressBar
 
     async def main(src, dst):
 
         os.umask(0o022)
 
         rctx = PosixStream()
-        wctx = PosixStream(rootdir = 'tests')
+        wctx = PosixStream()
+
+        with rctx, wctx:
         
-        rfile = rctx.open(src, 'r')
-        wfile = wctx.open(dst, 'w')
+            rfile = rctx.open(src, 'r')
+            wfile = wctx.open(dst, 'w')
 
-        async with rfile as r, wfile as w:
+            async with rfile as r, wfile as w:
+                
+                LOG.debug("\tReader: %s", id(r))
+                LOG.debug("\tWriter: %s", id(w))
 
-            LOG.debug("\tReader: %s", id(r))
-            LOG.debug("\tWriter: %s", id(w))
-
-            LOG.debug("Filesize: %s bytes", r.size)
-            tracer = ProgressBar("Copying", r.size)
-
-            #chunksize = max(r.CHUNK_SIZE, w.CHUNK_SIZE)
-            chunksize = min(r.CHUNK_SIZE, w.CHUNK_SIZE)
-            LOG.debug("Chunk size: %s bytes", chunksize)
-            buffer = bytearray(chunksize)
-
-            while True:
-                n = await r.readinto(buffer)
-                if n == 0:
-                    break
-                await w.write(buffer[:n])
-                tracer.update(n)
-            tracer.close()
-            LOG.debug("Copied %s bytes / %s bytes", r.tell(), w.tell())
+                LOG.debug("Filesize: %s bytes", r.size)
+                tracer = ProgressBar("Copying", r.size)
+                
+                #chunksize = max(r.CHUNK_SIZE, w.CHUNK_SIZE)
+                chunksize = min(r.CHUNK_SIZE, w.CHUNK_SIZE)
+                LOG.debug("Chunk size: %s bytes", chunksize)
+                buffer = bytearray(chunksize)
+                
+                while True:
+                    n = await r.readinto(buffer)
+                    if n == 0:
+                        break
+                    await w.write(buffer[:n])
+                    tracer.update(n)
+                tracer.close()
+                LOG.debug("Copied %s bytes / %s bytes", r.tell(), w.tell())
                     
-            if r.size != w.tell():
-                LOG.error("\tMissing bytes from: %s", src)
+                if r.size != w.tell():
+                    LOG.error("\tMissing bytes from: %s", src)
 
 
     loop = asyncio.new_event_loop()
