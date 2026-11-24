@@ -155,13 +155,13 @@ class _RingBase(ABC):
 
     @abstractmethod
     def submit_read(
-            self, fd: int, buffer: bytearray, size: int, offset: int,
+            self, fd: int, buffer: bytearray, offset: int,
             fut: asyncio.Future,
     ) -> None: ...
 
     @abstractmethod
     def submit_write(
-            self, f, buffer: memoryview | bytearray | bytes, # size: int, # offset: int,
+            self, fd: int, data: memoryview | bytearray | bytes, offset: int,
             fut: asyncio.Future,
     ) -> None: ...
 
@@ -225,7 +225,7 @@ class _Ring(_RingBase):
         return self.token_counter
 
     def submit_read(
-            self, fd: int, buffer: bytearray, size: int, offset: int,
+            self, fd: int, buffer: bytearray, offset: int,
             fut: asyncio.Future,
     ) -> None:
         if not self.ready:
@@ -234,12 +234,12 @@ class _Ring(_RingBase):
         token = self._next_token()
         self.pending[token] = fut
         sqe = _liburing.io_uring_get_sqe(self.ring)
-        _liburing.io_uring_prep_read(sqe, fd, iov.iov_base, size, offset)
+        _liburing.io_uring_prep_read(sqe, fd, iov.iov_base, len(buffer), offset)
         _liburing.io_uring_sqe_set_data64(sqe, token)
         _liburing.trap_error(_liburing.io_uring_submit(self.ring))
 
     def submit_write(
-            self, fd: int, data: bytes | bytearray | memoryview, size: int,
+            self, fd: int, data: bytes | bytearray | memoryview,
             offset: int, fut: asyncio.Future,
     ) -> None:
         if not self.ready:
@@ -249,7 +249,7 @@ class _Ring(_RingBase):
         token = self._next_token()
         self.pending[token] = fut
         sqe = _liburing.io_uring_get_sqe(self.ring)
-        _liburing.io_uring_prep_write(sqe, fd, iov.iov_base, size, offset)
+        _liburing.io_uring_prep_write(sqe, fd, iov.iov_base, len(data), offset)
         _liburing.io_uring_sqe_set_data64(sqe, token)
         _liburing.trap_error(_liburing.io_uring_submit(self.ring))
         

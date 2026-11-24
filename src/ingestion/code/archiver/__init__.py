@@ -69,10 +69,10 @@ def main(conf_file, queue):
     else:
         bctx = connectors.NoContext()
 
-    with rctx, vctx, bctx:
+    with rctx, vctx, bctx as _bctx:
 
         async def do_work(message):
-            await work(FEGAMessage(message), mq.publish, rctx, vctx, bctx)
+            await work(FEGAMessage(message), mq.publish, rctx, vctx, _bctx)
 
         loop.create_task(mq.consume(queue, do_work,
                                     consumer_tag=queue,
